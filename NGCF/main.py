@@ -2,6 +2,7 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import time
+from tqdm import tqdm
 
 # Importy z naszych plików
 from model import NGCF
@@ -55,9 +56,12 @@ def main():
     for epoch in range(EPOCHS):
         model.train()
         total_loss = 0
+
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{EPOCHS}")
+
         start_time = time.time()
 
-        for batch_i, (users, pos_items, neg_items) in enumerate(train_loader):
+        for batch_i, (users, pos_items, neg_items) in enumerate(pbar):
             users = users.to(DEVICE)
             pos_items = pos_items.to(DEVICE)
             neg_items = neg_items.to(DEVICE)
@@ -78,6 +82,8 @@ def main():
             optimizer.step()
 
             total_loss += loss.item()
+
+            pbar.set_postfix({'loss': loss.item()})
 
         avg_loss = total_loss / len(train_loader)
         print(f"Epoch {epoch+1:02d}/{EPOCHS} | Loss: {avg_loss:.4f} | Time: {time.time() - start_time:.2f}s")
