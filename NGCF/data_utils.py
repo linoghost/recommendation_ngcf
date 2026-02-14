@@ -147,9 +147,9 @@ def prepare_or_load_dataset(csv_path):
 
     # Jeśli brak cache, przetwarzamy od zera
     df, n_users, n_items, u_enc, i_enc = load_and_process_movielens(csv_path)
-    train_df, _ = train_test_split(df, test_size=0.2, random_state=42)
+    train_df, test_df = train_test_split(df, test_size=0.2, random_state=42)
     train_pairs = list(zip(train_df['user_id_idx'], train_df['item_id_idx']))
-
+    test_pairs = list(zip(test_df['user_id_idx'], test_df['item_id_idx']))
     adj_matrix = create_adj_matrix(n_users, n_items, train_pairs)
 
     encoders = {'user': u_enc, 'item': i_enc}

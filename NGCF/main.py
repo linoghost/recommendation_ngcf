@@ -19,6 +19,51 @@ LR = 0.001
 EPOCHS = 30
 DECAY = 1e-5 
 
+def evaluate(model, adj_matrix, test_loader, k=20):
+    model.eval()
+    hr_list = []
+    mrr_list = []
+    ndcg_list = []
+
+    with torch.no_grad():
+        #generujemy embeddingi 
+        u_g_embeddings, i_g_embeddings = model(adj_matrix)
+
+        for users, pos_items in test_loader:
+            users = users.to(DEVICE)
+            pos_items = pos_items.to(DEVICE)
+
+            # wyniki dla wszystkich
+            # [batch_size, emb_dim] @ [emb_dim, n_items] -> [batch_size, n_items]
+            scores = torch.matmul(u_g_embeddings[users], i_g_embeddings.t())
+
+            # Pobieramy top K indeksów
+            _, top_indices = torch.topk(scores, k=k)
+
+            # hitrate
+            targets = pos_items.view(-1, 1)
+            hits = (top_indices == targets).any(dim=1).float()
+            hr_list.extend(hits.cpu().tolist())
+
+            # mrr
+            hit_mask = (top_indices == targets)
+            for row in hit_mask:
+                hit_pos = torch.where(row)[0]
+                if len(hit_pos) > 0:
+                    mrr_list.append(1.0 / (hit_pos[0].item() + 1))
+                else:
+                    mrr_list.append(0.0)
+            
+            # ndcg
+            for row in hit_mask:
+                hit_pos = torch.where(row)[0]
+                if len(hit_pos) > 0:
+                    ndcg_list.append(1.0 / torch.log2(torch.tensor(hit_pos[0].item() + 2.0)))
+                else:
+                    ndcg_list.append(0.0)
+
+    return sum(hr_list)/len(hr_list), sum(mrr_list)/len(mrr_list), sum(ndcg_list)/len(ndcg_list)
+
 def bpr_loss(u_emb, pos_i_emb, neg_i_emb):
     """
     Bayesian Personalized Ranking Loss
