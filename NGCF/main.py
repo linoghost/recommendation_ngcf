@@ -170,7 +170,7 @@ def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items):
     plt.ylim(0, max(values) + 0.1) 
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     
-    plt.savefig(f'Wyniki_dla_{int(PROC_DANYCH*100)}_proc_danych.png')
+    plt.savefig(f'wykresy/Wyniki_dla_{int(PROC_DANYCH*100)}_proc_danych.png')
     plt.show()
 
 
@@ -188,7 +188,7 @@ def plot_training_loss(epoch_losses):
         plt.annotate(f'{loss:.4f}', (i+1, epoch_losses[i]), textcoords="offset points", xytext=(0,10), ha='center')
 
     plt.tight_layout()
-    plt.savefig(f'Loss_plot_{int(PROC_DANYCH*100)}proc.png')
+    plt.savefig(f'wykresy/Loss_plot_{int(PROC_DANYCH*100)}proc.png')
     plt.show()
 
 
