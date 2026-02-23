@@ -3,6 +3,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import time
 from tqdm import tqdm
+import os
+import matplotlib.pyplot as plt
 
 
 from model import NGCF
@@ -10,6 +12,7 @@ from data_utils import prepare_or_load_dataset, MovieLensTrainDataset
 
 
 CSV_PATH = 'archive/rating.csv' 
+NGCF_PATH = 'ngcf_model.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 BATCH_SIZE = 1024
@@ -19,12 +22,15 @@ LR = 0.001
 EPOCHS = 30
 DECAY = 1e-5 
 
-def evaluate(model, adj_matrix, test_loader, k=20):
+PROC_DANYCH = 0.1 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model
+#w fazach testowych
+
+def evaluate_methods(model, adj_matrix, test_loader, k=20):
     model.eval()
     hr_list = []
     mrr_list = []
     ndcg_list = []
-
+    print(f"Używam urządzenia: {DEVICE}")
     with torch.no_grad():
         #generujemy embeddingi 
         u_g_embeddings, i_g_embeddings = model(adj_matrix)
@@ -75,17 +81,11 @@ def bpr_loss(u_emb, pos_i_emb, neg_i_emb):
     loss = -torch.mean(torch.nn.functional.logsigmoid(pos_scores - neg_scores))
     return loss
 
-def main():
+
+def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta):
     print(f"Używam urządzenia: {DEVICE}")
 
-    
-    try:
-        adj_matrix, train_pairs, n_users, n_items, meta = prepare_or_load_dataset(CSV_PATH)
-    except FileNotFoundError:
-        print(f"Błąd: Nie znaleziono pliku '{CSV_PATH}'. Pobierz MovieLens dataset.")
-        return
-
-    adj_matrix = adj_matrix.to(DEVICE)
+    epoch_loses=[]
 
     train_dataset = MovieLensTrainDataset(train_pairs, n_users, n_items)
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
@@ -131,11 +131,94 @@ def main():
             pbar.set_postfix({'loss': loss.item()})
 
         avg_loss = total_loss / len(train_loader)
+        epoch_loses.append(avg_loss)
         print(f"Epoch {epoch+1:02d}/{EPOCHS} | Loss: {avg_loss:.4f} | Time: {time.time() - start_time:.2f}s")
 
     
     torch.save(model.state_dict(), 'ngcf_model.pth')
     print("Model zapisany jako 'ngcf_model.pth'")
+    return epoch_loses
+
+
+def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items):
+    
+    test_loader = DataLoader(test_pairs, batch_size=1024, shuffle=False)
+
+    print("Obliczanie metryk...")
+    hr, mrr, ndcg = evaluate_methods(model, adj_matrix, test_loader, k=20)
+
+    print(f"\nWyniki @K=20:")
+    print(f"Hit Rate: {hr:.4f}")
+    print(f"MRR:      {mrr:.4f}")
+    print(f"NDCG:     {ndcg:.4f}")
+
+    
+    metrics = ['Hit Rate', 'MRR', 'NDCG']
+    values = [hr, mrr, ndcg]
+    colors = ['#4e79a7', '#f28e2b', '#e15759']
+
+    plt.figure(figsize=(10, 6))
+    bars = plt.bar(metrics, values, color=colors)
+    
+    
+    for bar in bars:
+        yval = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2, yval + 0.005, f'{yval:.4f}', ha='center', va='bottom', fontsize=12)
+
+    plt.title('Metryki Ewaluacji Modelu Rekomendacyjnego (@K=20)', fontsize=14)
+    plt.ylabel('Wartość', fontsize=12)
+    plt.ylim(0, max(values) + 0.1) 
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    
+    plt.savefig(f'Wyniki_dla_{int(PROC_DANYCH*100)}_proc_danych.png')
+    plt.show()
+
+
+def plot_training_loss(epoch_losses):
+    plt.figure(figsize=(10, 5))
+    plt.plot(range(1, len(epoch_losses) + 1), epoch_losses, marker='o', color='#2c3e50', linestyle='-', linewidth=2)
+    
+    plt.title('Krzywa uczenia (BPR Loss)', fontsize=14)
+    plt.xlabel('Epoka', fontsize=12)
+    plt.ylabel('Średni Loss', fontsize=12)
+    plt.grid(True, which='both', linestyle='--', alpha=0.5)
+    
+    
+    for i, loss in enumerate(epoch_losses):
+        plt.annotate(f'{loss:.4f}', (i+1, epoch_losses[i]), textcoords="offset points", xytext=(0,10), ha='center')
+
+    plt.tight_layout()
+    plt.savefig(f'Loss_plot_{int(PROC_DANYCH*100)}proc.png')
+    plt.show()
+
+
+def main():
+    try:
+        adj_matrix, train_pairs, test_pairs, n_users, n_items, meta = prepare_or_load_dataset(CSV_PATH, PROC_DANYCH)
+    except FileNotFoundError:
+        print(f"Błąd: Nie znaleziono pliku '{CSV_PATH}'. Pobierz MovieLens dataset.")
+        return
+    
+    adj_matrix = adj_matrix.to(DEVICE)
+
+    if not os.path.exists(NGCF_PATH):
+        loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta)
+        plot_training_loss(loses)
+
+    print(f"Używam urządzenia: {DEVICE}")
+    
+    model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS)
+
+    state_dict = torch.load(NGCF_PATH, map_location=DEVICE)
+
+    model.load_state_dict(state_dict)
+
+    model.to(DEVICE)
+    
+    evaluate_model(model, adj_matrix, test_pairs, n_users, n_items)
+
+
+
 
 if __name__ == "__main__":
     main()
