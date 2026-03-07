@@ -42,7 +42,11 @@ def load_and_process_movielens(file_path, proc_danych):
 
     if proc_danych<1:
         print("redukcja danych o", proc_danych*100, "%")
-        df = df.sample(frac=proc_danych,random_state=42).copy()
+        unique_users = df['userId'].unique()
+        # Wybieramy losowe 25% użytkowników
+        sampled_users = np.random.choice(unique_users, size=int(len(unique_users) * proc_danych), replace=False)
+        # Zostawiamy TYLKO tych użytkowników, ale z CAŁĄ ich historią
+        df = df[df['userId'].isin(sampled_users)].copy()
     # zostawiamy tylko oceny wieksze od 4 bo wtedy mamy takie realne zainteresowanie czyms
     df = df[df['rating'] >= 4.0].copy()
 

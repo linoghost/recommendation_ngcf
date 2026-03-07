@@ -22,17 +22,17 @@ LR = 0.001
 EPOCHS = 30
 DECAY = 1e-5 
 
-PROC_DANYCH = 0.1 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model
+PROC_DANYCH = 0.15 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model
 #w fazach testowych
 
-def evaluate_methods(model, adj_matrix, test_loader, k=20):
+def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
     model.eval()
     hr_list = []
     mrr_list = []
     ndcg_list = []
     print(f"Używam urządzenia: {DEVICE}")
     with torch.no_grad():
-        #generujemy embeddingi 
+        #generujemy embeddingi, mają w sobie informacje o preferencjach itd 
         u_g_embeddings, i_g_embeddings = model(adj_matrix)
 
         for users, pos_items in test_loader:
@@ -42,6 +42,14 @@ def evaluate_methods(model, adj_matrix, test_loader, k=20):
             # wyniki dla wszystkich
             # [batch_size, emb_dim] @ [emb_dim, n_items] -> [batch_size, n_items]
             scores = torch.matmul(u_g_embeddings[users], i_g_embeddings.t())
+
+            users_list = users.cpu().tolist()
+            for idx, user in enumerate(users_list):
+                if user in train_user_dict:
+                    train_items = train_user_dict[user]
+                    # Ustawiamy wynik przedmiotów treningowych na minus nieskończoność,
+                    # dzięki czemu torch.topk nigdy ich nie wybierze.
+                    scores[idx, train_items] = -float('inf')
 
             # Pobieramy top K indeksów
             _, top_indices = torch.topk(scores, k=k)
@@ -140,12 +148,12 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta):
     return epoch_loses
 
 
-def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items):
+def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict):
     
     test_loader = DataLoader(test_pairs, batch_size=1024, shuffle=False)
 
     print("Obliczanie metryk...")
-    hr, mrr, ndcg = evaluate_methods(model, adj_matrix, test_loader, k=20)
+    hr, mrr, ndcg = evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20)
 
     print(f"\nWyniki @K=20:")
     print(f"Hit Rate: {hr:.4f}")
@@ -205,6 +213,18 @@ def main():
         loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta)
         plot_training_loss(loses)
 
+    train_user_dict = {} #robię słownik dla rzeczy ktore widzial uzytkownik
+    #nie jestem pewna, czy to jest najlepszy sposób na poprawienie modelu
+    #ale w evaluation methods model chyba bierze tylko dane z treningu 
+    # jako wyniki for some reason
+    
+    for pair in train_pairs:
+        u = int(pair[0])
+        i = int(pair[1])
+        if u not in train_user_dict:
+            train_user_dict[u] = []
+        train_user_dict[u].append(i)
+
     print(f"Używam urządzenia: {DEVICE}")
     
     model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS)
@@ -215,7 +235,7 @@ def main():
 
     model.to(DEVICE)
     
-    evaluate_model(model, adj_matrix, test_pairs, n_users, n_items)
+    evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict)
 
 
 
