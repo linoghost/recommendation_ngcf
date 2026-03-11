@@ -15,15 +15,15 @@ CSV_PATH = 'archive/rating.csv'
 NGCF_PATH = 'ngcf_model.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-BATCH_SIZE = 1024
+BATCH_SIZE = 65536
 EMB_DIM = 64
 LAYERS = [64, 64]  #2 warswy so far
+DROPOUTS = [0.1, 0.1]
 LR = 0.001
-EPOCHS = 30
+EPOCHS = 100
 DECAY = 1e-5 
 
-PROC_DANYCH = 0.15 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model
-#w fazach testowych
+PROC_DANYCH = 0.5 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
 def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
     model.eval()
@@ -96,12 +96,12 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta):
     epoch_loses=[]
 
     train_dataset = MovieLensTrainDataset(train_pairs, n_users, n_items)
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=2, pin_memory=True)
 
     print(f"Dane gotowe. Users: {n_users}, Items: {n_items}")
 
     
-    model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS).to(DEVICE)
+    model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS, dropouts=DROPOUTS).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=DECAY)
 
     
@@ -142,6 +142,8 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta):
         epoch_loses.append(avg_loss)
         print(f"Epoch {epoch+1:02d}/{EPOCHS} | Loss: {avg_loss:.4f} | Time: {time.time() - start_time:.2f}s")
 
+        if(epoch + 1) % 10 == 0 :
+            torch.save(model.state_dict(), f'ngcf_model_checkpoint.pth') 
     
     torch.save(model.state_dict(), 'ngcf_model.pth')
     print("Model zapisany jako 'ngcf_model.pth'")
@@ -178,7 +180,8 @@ def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_d
     plt.ylim(0, max(values) + 0.1) 
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     
-    plt.savefig(f'wykresy/Wyniki_dla_{int(PROC_DANYCH*100)}_proc_danych.png')
+    os.makedirs('../wykresy', exist_ok=True)
+    plt.savefig(f'../wykresy/Wyniki_dla_{int(PROC_DANYCH*100)}_proc_danych.png')
     plt.show()
 
 
@@ -196,7 +199,8 @@ def plot_training_loss(epoch_losses):
         plt.annotate(f'{loss:.4f}', (i+1, epoch_losses[i]), textcoords="offset points", xytext=(0,10), ha='center')
 
     plt.tight_layout()
-    plt.savefig(f'wykresy/Loss_plot_{int(PROC_DANYCH*100)}proc.png')
+    os.makedirs('../wykresy', exist_ok=True) 
+    plt.savefig(f'../wykresy/Loss_plot_{int(PROC_DANYCH*100)}proc.png')
     plt.show()
 
 
@@ -227,7 +231,7 @@ def main():
 
     print(f"Używam urządzenia: {DEVICE}")
     
-    model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS)
+    model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS, dropouts=DROPOUTS)
 
     state_dict = torch.load(NGCF_PATH, map_location=DEVICE)
 

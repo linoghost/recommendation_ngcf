@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class NGCF(nn.Module):
-    def __init__(self, n_users, n_items, emb_dim, layers=[64, 64], dropouts=[0.1, 0.1]):
+    def __init__(self, n_users, n_items, emb_dim, layers=[64, 64, 64], dropouts=[0.1, 0.1]):
         super(NGCF, self).__init__()
         self.n_users = n_users
         self.n_items = n_items
