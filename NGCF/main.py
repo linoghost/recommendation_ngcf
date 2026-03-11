@@ -15,15 +15,15 @@ CSV_PATH = 'archive/rating.csv'
 NGCF_PATH = 'ngcf_model.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-BATCH_SIZE = 65536
+BATCH_SIZE = 1024
 EMB_DIM = 64
 LAYERS = [64, 64]  #2 warswy so far
 DROPOUTS = [0.1, 0.1]
 LR = 0.001
-EPOCHS = 100
+EPOCHS = 2
 DECAY = 1e-5 
 
-PROC_DANYCH = 0.5 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
+PROC_DANYCH = 0.01 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
 def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
     model.eval()
@@ -180,7 +180,6 @@ def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_d
     plt.ylim(0, max(values) + 0.1) 
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     
-    os.makedirs('../wykresy', exist_ok=True)
     plt.savefig(f'../wykresy/Wyniki_dla_{int(PROC_DANYCH*100)}_proc_danych.png')
     plt.show()
 
@@ -199,7 +198,6 @@ def plot_training_loss(epoch_losses):
         plt.annotate(f'{loss:.4f}', (i+1, epoch_losses[i]), textcoords="offset points", xytext=(0,10), ha='center')
 
     plt.tight_layout()
-    os.makedirs('../wykresy', exist_ok=True) 
     plt.savefig(f'../wykresy/Loss_plot_{int(PROC_DANYCH*100)}proc.png')
     plt.show()
 
