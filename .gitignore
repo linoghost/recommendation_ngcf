@@ -4,6 +4,7 @@ archive/
 
 # pliki modelu
 *.pt
+*.pth
 *.pkl
 
 # Byte-compiled / optimized / DLL files
