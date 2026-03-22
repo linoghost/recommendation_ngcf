@@ -8,7 +8,7 @@ Projekt wymaga środowiska Python oraz biblioteki PyTorch z obsługą CUDA (zale
 
 1. Sklonuj repozytorium na swój komputer:
    ```bash
-   git clone <https://github.com/linoghost/recommendation_ngcf.git>
+   git clone https://github.com/linoghost/recommendation_ngcf.git
    ```
 2. Utwórz i aktywuj wirtualne środowisko
     ```bash 
@@ -27,8 +27,27 @@ Projekt wymaga środowiska Python oraz biblioteki PyTorch z obsługą CUDA (zale
 
 4. Pobierz zbiór danych MovieLens 20M Dataset spod [linku](https://www.kaggle.com/datasets/grouplens/movielens-20m-dataset).
 
-5. W folderze NGCF utwórz nowy folder "archive" i umieśc tam plik rating.csv.
+5. W folderze NGCF utwórz nowy folder "archive" i umieśc tam plik rating.csv
 
+Struktura plików powinna wyglądać tak:
+```bash
+NGCF/
+├── archive/
+│   └── rating.csv
+├── wykresy/
+├── data_utils.py
+├── main.py
+└── model.py
+```
 6. Uruchom całość z poziomu terminala za pomocą komendy python main.py.
 
-Uwagi:
+## Uwagi:
+W celu ponownego uruchomienia modelu po zmianie wartości parametrów musimy wykonać kilka niezbędnych czynności:
+* Gdy zmieniamy ilość danych (`PROC_DANYCH`), to musimy usunąć folder `data_processed/`. 
+  - W przeciwnym razie, skrypt załaduje stary rozmiar danych z pamięci podręcznej.
+
+* Gdy chcemy wytrenować model od nowa, to musimy usunąć plik `ngcf_model.pth` (oraz ewentualne pliki `checkpoint.pth`). 
+  - W przeciwnym razie, skrypt uzna, że model jest już gotowy, pominie całkowicie proces uczenia i przejdzie do testowania.
+
+* Gdzie są wyniki?
+  Po zakończeniu pracy skryptu, gotowe wykresy wyników oraz krzywa uczenia zapisują się w folderze `wykresy/`, a wyniki pośrednie będą pokazywały się w terminalu.
