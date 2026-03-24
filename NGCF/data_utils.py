@@ -154,6 +154,13 @@ def prepare_or_load_dataset(csv_path, proc_danych):
     
     df, n_users, n_items, u_enc, i_enc = load_and_process_movielens(csv_path,proc_danych)
     train_df, test_df = train_test_split(df, test_size=0.2, random_state=42)
+
+    valid_users = train_df['user_id_idx'].unique()
+    valid_items = train_df['item_id_idx'].unique()
+
+    test_df = test_df[test_df['user_id_idx'].isin(valid_users)]
+    test_df = test_df[test_df['item_id_idx'].isin(valid_items)]
+
     train_pairs = list(zip(train_df['user_id_idx'], train_df['item_id_idx']))
 
     test_pairs = list(zip(test_df['user_id_idx'], test_df['item_id_idx']))
