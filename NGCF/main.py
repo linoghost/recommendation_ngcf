@@ -15,7 +15,7 @@ CSV_PATH = 'archive/rating.csv'
 NGCF_PATH = 'ngcf_model.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-BATCH_SIZE = 1024
+BATCH_SIZE = 512
 EMB_DIM = 64
 LAYERS = [64, 64]  #2 warswy so far
 DROPOUTS = [0.1, 0.1]
@@ -238,9 +238,6 @@ def main():
     model.to(DEVICE)
     
     evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict)
-
-
-
 
 if __name__ == "__main__":
     main()

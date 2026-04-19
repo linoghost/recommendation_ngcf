@@ -29,7 +29,7 @@ class MovieLensTrainDataset(data.Dataset):
     def __getitem__(self, idx):
         user, pos_item = self.train_pairs[idx]
 
-        # negative sampling -losujemy itemek nieznany użytkownikowi
+        # uniform negative sampling - losujemy item nieznany użytkownikowi
         neg_item = np.random.randint(0, self.n_items)
         while neg_item in self.train_user_set[user]:
             neg_item = np.random.randint(0, self.n_items)
@@ -47,13 +47,13 @@ def load_and_process_movielens(file_path, proc_danych):
         sampled_users = np.random.choice(unique_users, size=int(len(unique_users) * proc_danych), replace=False)
         # Zostawiamy TYLKO tych użytkowników, ale z CAŁĄ ich historią
         df = df[df['userId'].isin(sampled_users)].copy()
+    
     # zostawiamy tylko oceny wieksze od 4 bo wtedy mamy takie realne zainteresowanie czyms
     df = df[df['rating'] >= 4.0].copy()
 
     # remapping zeby zamiast id=1928372 bylo 1, 2, 3 itd
     user_encoder = LabelEncoder()
     item_encoder = LabelEncoder()
-
     df['user_id_idx'] = user_encoder.fit_transform(df['userId'])
     df['item_id_idx'] = item_encoder.fit_transform(df['movieId'])
 
@@ -72,13 +72,13 @@ def create_adj_matrix(n_users, n_items, user_item_pairs):
     cols = [pair[1] for pair in user_item_pairs]
     data_vals = np.ones(len(rows), dtype=np.float32)
 
-    
+    # tworzenie macierzy interakcji (kto co obejrzał)
     R = sp.coo_matrix((data_vals, (rows, cols)), shape=(n_users, n_items)).tocsr()
 
-    # macierz blokowa A, gdzie mamy none, jakie filmy obejrzeli uzytkownicy oraz jacy uzytkownicy oberzeli dany film, none
+    # tworzenie macierzy blokowej grafu dwudzielnego
     adj_mat = sp.bmat([[None, R], [R.T, None]], format='csr')
 
-    # dodajemy jedynke na przekątnej (self loops)
+    # dodajemy jedynkę na przekątnej (self loops)
     adj_mat = adj_mat + sp.eye(adj_mat.shape[0], format='csr', dtype=np.float32)
 
     # stopień węzła (suma wierszy)
@@ -89,7 +89,7 @@ def create_adj_matrix(n_users, n_items, user_item_pairs):
     d_inv[np.isinf(d_inv)] = 0.
     d_mat = sp.diags(d_inv, format='csr')
 
-    # Mnożenie macierzy rzadkich (bardzo szybkie i oszczędne)
+    # MnożenieMnożenie macierzy rzadkich: D^-1/2 * A * D^-1/2
     norm_adj = d_mat.dot(adj_mat).dot(d_mat)
 
     
