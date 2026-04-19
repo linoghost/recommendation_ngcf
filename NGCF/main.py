@@ -15,15 +15,15 @@ CSV_PATH = 'archive/rating.csv'
 NGCF_PATH = 'ngcf_model.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-BATCH_SIZE = 512
+BATCH_SIZE = 128
 EMB_DIM = 64
 LAYERS = [64, 64]  #2 warswy so far
 DROPOUTS = [0.1, 0.1]
 LR = 0.001
-EPOCHS = 2
+EPOCHS = 1024
 DECAY = 1e-5 
 
-PROC_DANYCH = 0.01 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
+PROC_DANYCH = 0.1 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
 def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
     model.eval()
@@ -106,6 +106,12 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta):
 
     
     print("Rozpoczynam trening...")
+
+    # Early stopping
+    best_loss = float('inf')
+    patience = 15
+    patience_counter = 0
+
     for epoch in range(EPOCHS):
         model.train()
         total_loss = 0
@@ -142,9 +148,23 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta):
         epoch_loses.append(avg_loss)
         print(f"Epoch {epoch+1:02d}/{EPOCHS} | Loss: {avg_loss:.4f} | Time: {time.time() - start_time:.2f}s")
 
+        if avg_loss < best_loss:
+            best_loss = avg_loss
+            patience_counter = 0
+            torch.save(model.state_dict(), 'ngcf_model_best.pth')
+        else:
+            patience_counter += 1
+            print(f"Brak poprawy od {patience_counter} epok.")
+
+        if patience_counter >= patience:
+            print(f"Early stopping! Brak poprawy od {patience} epok.")
+            print(f"Koniec na epoce {epoch+1}.")
+            break
+
         if(epoch + 1) % 10 == 0 :
             torch.save(model.state_dict(), f'ngcf_model_checkpoint.pth') 
-    
+
+    model.load_state_dict(torch.load('ngcf_model_best.pth'))
     torch.save(model.state_dict(), 'ngcf_model.pth')
     print("Model zapisany jako 'ngcf_model.pth'")
     return epoch_loses
