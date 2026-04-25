@@ -15,22 +15,13 @@ CSV_PATH = 'archive/rating.csv'
 NGCF_PATH = 'ngcf_model.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-<<<<<<< HEAD
-BATCH_SIZE = 128
-=======
-BATCH_SIZE = 1024
->>>>>>> 51605fb1fe68b39986258b253685cdce9ee207ef
+BATCH_SIZE = 512
 EMB_DIM = 16
 LAYERS = [16, 16]  #2 warswy so far
 DROPOUTS = [0.1, 0.1]
 LR = 0.001
-<<<<<<< HEAD
 EPOCHS = 34
-=======
-EPOCHS = 32
->>>>>>> 51605fb1fe68b39986258b253685cdce9ee207ef
 DECAY = 1e-5
-USE_HNS = True 
 
 PROC_DANYCH = 0.1 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
@@ -121,7 +112,7 @@ def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict):
     
     return i_g_embeddings[hard_neg_indices.squeeze()] #embeddingi znalezionych hard neg
 
-def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict):
+def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, use_hns=True):
     print(f"Używam urządzenia: {DEVICE}")
 
     epoch_loses=[]
@@ -159,7 +150,7 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
             u_batch = u_g_embeddings[users]
             pos_i_batch = i_g_embeddings[pos_items]
 
-            if USE_HNS:
+            if use_hns:
                 neg_i_batch=get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict)
             else:
                 neg_i_batch = i_g_embeddings[neg_items]
@@ -177,12 +168,6 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
         epoch_loses.append(avg_loss)
         print(f"Epoch {epoch+1:02d}/{EPOCHS} | Loss: {avg_loss:.4f} | Time: {time.time() - start_time:.2f}s")
 
-<<<<<<< HEAD
-
-=======
-        if(epoch + 1) % 10 == 0 :
-            torch.save(model.state_dict(), f'ngcf_model_checkpoint.pth') 
->>>>>>> 51605fb1fe68b39986258b253685cdce9ee207ef
     
     torch.save(model.state_dict(), 'ngcf_model.pth')
     print("Model zapisany jako 'ngcf_model.pth'")
@@ -266,12 +251,13 @@ def main():
         print("Uzyc Hard negative sampling? T/N")
         hns_response = input()
         if hns_response=='N':
-            USE_HNS=False
+            use_hns=False
             print("robimy bez")
         else:
+            use_hns=True
             print("robimy hns")
 
-        loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict)
+        loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, use_hns)
         plot_training_loss(loses)
 
     
