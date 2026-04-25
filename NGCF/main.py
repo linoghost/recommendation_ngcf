@@ -15,12 +15,20 @@ CSV_PATH = 'archive/rating.csv'
 NGCF_PATH = 'ngcf_model.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+<<<<<<< HEAD
 BATCH_SIZE = 128
+=======
+BATCH_SIZE = 1024
+>>>>>>> 51605fb1fe68b39986258b253685cdce9ee207ef
 EMB_DIM = 16
 LAYERS = [16, 16]  #2 warswy so far
 DROPOUTS = [0.1, 0.1]
 LR = 0.001
+<<<<<<< HEAD
 EPOCHS = 34
+=======
+EPOCHS = 32
+>>>>>>> 51605fb1fe68b39986258b253685cdce9ee207ef
 DECAY = 1e-5
 USE_HNS = True 
 
@@ -169,7 +177,12 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
         epoch_loses.append(avg_loss)
         print(f"Epoch {epoch+1:02d}/{EPOCHS} | Loss: {avg_loss:.4f} | Time: {time.time() - start_time:.2f}s")
 
+<<<<<<< HEAD
 
+=======
+        if(epoch + 1) % 10 == 0 :
+            torch.save(model.state_dict(), f'ngcf_model_checkpoint.pth') 
+>>>>>>> 51605fb1fe68b39986258b253685cdce9ee207ef
     
     torch.save(model.state_dict(), 'ngcf_model.pth')
     print("Model zapisany jako 'ngcf_model.pth'")
