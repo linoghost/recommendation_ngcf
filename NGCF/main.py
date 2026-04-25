@@ -15,15 +15,16 @@ CSV_PATH = 'archive/rating.csv'
 NGCF_PATH = 'ngcf_model.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-BATCH_SIZE = 16384
+BATCH_SIZE = 1024
 EMB_DIM = 16
 LAYERS = [16, 16]  #2 warswy so far
 DROPOUTS = [0.1, 0.1]
 LR = 0.001
-EPOCHS = 4
-DECAY = 1e-5 
+EPOCHS = 32
+DECAY = 1e-5
+USE_HNS = True 
 
-PROC_DANYCH = 0.01 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
+PROC_DANYCH = 0.1 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
 def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
     model.eval()
@@ -98,7 +99,21 @@ def bpr_loss(u_emb, pos_i_emb, neg_i_emb):
     return loss
 
 
-def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta):
+def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict):
+    with torch.no_grad():
+        scores = torch.matmul(u_batch, i_g_embeddings.t())
+
+        users_list = users.tolist()
+        for idx, user in enumerate(users_list):
+            if user in train_user_dict:
+                train_items = train_user_dict[user]
+                scores[idx, train_items] = -float('inf')
+
+        _, hard_neg_indices = torch.topk(scores, k=1, dim=1) #najwyzszy wynik wsrod nieobejrzanych
+    
+    return i_g_embeddings[hard_neg_indices.squeeze()] #embeddingi znalezionych hard neg
+
+def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict):
     print(f"Używam urządzenia: {DEVICE}")
 
     epoch_loses=[]
@@ -135,7 +150,11 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta):
             # Wybór embeddingów dla batcha
             u_batch = u_g_embeddings[users]
             pos_i_batch = i_g_embeddings[pos_items]
-            neg_i_batch = i_g_embeddings[neg_items]
+
+            if USE_HNS:
+                neg_i_batch=get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict)
+            else:
+                neg_i_batch = i_g_embeddings[neg_items]
 
             # Loss i Backprop
             loss = bpr_loss(u_batch, pos_i_batch, neg_i_batch)
@@ -220,14 +239,7 @@ def main():
     
     adj_matrix = adj_matrix.to(DEVICE)
 
-    if not os.path.exists(NGCF_PATH):
-        loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta)
-        plot_training_loss(loses)
-
-    train_user_dict = {} #robię słownik dla rzeczy ktore widzial uzytkownik
-    #nie jestem pewna, czy to jest najlepszy sposób na poprawienie modelu
-    #ale w evaluation methods model chyba bierze tylko dane z treningu 
-    # jako wyniki for some reason
+    train_user_dict = {} 
     
     for pair in train_pairs:
         u = int(pair[0])
@@ -235,6 +247,22 @@ def main():
         if u not in train_user_dict:
             train_user_dict[u] = []
         train_user_dict[u].append(i)
+
+
+    if not os.path.exists(NGCF_PATH):
+        
+        print("Uzyc Hard negative sampling? T/N")
+        hns_response = input()
+        if hns_response=='N':
+            USE_HNS=False
+            print("robimy bez")
+        else:
+            print("robimy hns")
+
+        loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict)
+        plot_training_loss(loses)
+
+    
 
     print(f"Używam urządzenia: {DEVICE}")
     
