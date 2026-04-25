@@ -15,21 +15,23 @@ CSV_PATH = 'archive/rating.csv'
 NGCF_PATH = 'ngcf_model.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-BATCH_SIZE = 128
-EMB_DIM = 64
-LAYERS = [64, 64]  #2 warswy so far
+BATCH_SIZE = 16384
+EMB_DIM = 16
+LAYERS = [16, 16]  #2 warswy so far
 DROPOUTS = [0.1, 0.1]
 LR = 0.001
-EPOCHS = 1024
+EPOCHS = 4
 DECAY = 1e-5 
 
-PROC_DANYCH = 0.1 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
+PROC_DANYCH = 0.01 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
 def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
     model.eval()
     hr_list = []
     mrr_list = []
     ndcg_list = []
+    recall_list = []
+
     print(f"Używam urządzenia: {DEVICE}")
     with torch.no_grad():
         #generujemy embeddingi, mają w sobie informacje o preferencjach itd 
@@ -76,7 +78,14 @@ def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
                 else:
                     ndcg_list.append(0.0)
 
-    return sum(hr_list)/len(hr_list), sum(mrr_list)/len(mrr_list), sum(ndcg_list)/len(ndcg_list)
+            #recall
+            for i in range(users.size(0)):
+                current_tarets = pos_items[i].view(-1)
+                hits_in_k = torch.isin(top_indices[i], current_tarets).sum().float()
+                user_recall = hits_in_k / current_tarets.size(0)
+                recall_list.append(user_recall.item()) 
+
+    return sum(hr_list)/len(hr_list), sum(mrr_list)/len(mrr_list), sum(ndcg_list)/len(ndcg_list), sum(recall_list)/len(recall_list)
 
 def bpr_loss(u_emb, pos_i_emb, neg_i_emb):
     """
@@ -85,7 +94,6 @@ def bpr_loss(u_emb, pos_i_emb, neg_i_emb):
     pos_scores = torch.sum(u_emb * pos_i_emb, dim=1)
     neg_scores = torch.sum(u_emb * neg_i_emb, dim=1)
 
-   
     loss = -torch.mean(torch.nn.functional.logsigmoid(pos_scores - neg_scores))
     return loss
 
@@ -106,12 +114,6 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta):
 
     
     print("Rozpoczynam trening...")
-
-    # Early stopping
-    best_loss = float('inf')
-    patience = 15
-    patience_counter = 0
-
     for epoch in range(EPOCHS):
         model.train()
         total_loss = 0
@@ -148,23 +150,9 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta):
         epoch_loses.append(avg_loss)
         print(f"Epoch {epoch+1:02d}/{EPOCHS} | Loss: {avg_loss:.4f} | Time: {time.time() - start_time:.2f}s")
 
-        if avg_loss < best_loss:
-            best_loss = avg_loss
-            patience_counter = 0
-            torch.save(model.state_dict(), 'ngcf_model_best.pth')
-        else:
-            patience_counter += 1
-            print(f"Brak poprawy od {patience_counter} epok.")
-
-        if patience_counter >= patience:
-            print(f"Early stopping! Brak poprawy od {patience} epok.")
-            print(f"Koniec na epoce {epoch+1}.")
-            break
-
         if(epoch + 1) % 10 == 0 :
             torch.save(model.state_dict(), f'ngcf_model_checkpoint.pth') 
-
-    model.load_state_dict(torch.load('ngcf_model_best.pth'))
+    
     torch.save(model.state_dict(), 'ngcf_model.pth')
     print("Model zapisany jako 'ngcf_model.pth'")
     return epoch_loses
@@ -175,17 +163,18 @@ def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_d
     test_loader = DataLoader(test_pairs, batch_size=1024, shuffle=False)
 
     print("Obliczanie metryk...")
-    hr, mrr, ndcg = evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20)
+    hr, mrr, ndcg, recall = evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20)
 
     print(f"\nWyniki @K=20:")
     print(f"Hit Rate: {hr:.4f}")
     print(f"MRR:      {mrr:.4f}")
     print(f"NDCG:     {ndcg:.4f}")
+    print(f"Recall:   {recall:.4f}")
 
     
-    metrics = ['Hit Rate', 'MRR', 'NDCG']
-    values = [hr, mrr, ndcg]
-    colors = ['#4e79a7', '#f28e2b', '#e15759']
+    metrics = ['Hit Rate', 'MRR', 'NDCG', 'Recall']
+    values = [hr, mrr, ndcg, recall]
+    colors = ['#4e79a7', '#f28e2b', '#e15759', "#57e17a"]
 
     plt.figure(figsize=(10, 6))
     bars = plt.bar(metrics, values, color=colors)
@@ -258,9 +247,6 @@ def main():
     model.to(DEVICE)
     
     evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict)
-
-
-
 
 if __name__ == "__main__":
     main()
