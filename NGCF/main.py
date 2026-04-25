@@ -16,12 +16,13 @@ NGCF_PATH = 'ngcf_model.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 BATCH_SIZE = 128
-EMB_DIM = 64
-LAYERS = [64, 64]  #2 warswy so far
+EMB_DIM = 16
+LAYERS = [16, 16]  #2 warswy so far
 DROPOUTS = [0.1, 0.1]
 LR = 0.001
-EPOCHS = 1024
-DECAY = 1e-5 
+EPOCHS = 34
+DECAY = 1e-5
+USE_HNS = True 
 
 PROC_DANYCH = 0.1 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
@@ -30,6 +31,8 @@ def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
     hr_list = []
     mrr_list = []
     ndcg_list = []
+    recall_list = []
+
     print(f"Używam urządzenia: {DEVICE}")
     with torch.no_grad():
         #generujemy embeddingi, mają w sobie informacje o preferencjach itd 
@@ -76,7 +79,14 @@ def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
                 else:
                     ndcg_list.append(0.0)
 
-    return sum(hr_list)/len(hr_list), sum(mrr_list)/len(mrr_list), sum(ndcg_list)/len(ndcg_list)
+            #recall
+            for i in range(users.size(0)):
+                current_tarets = pos_items[i].view(-1)
+                hits_in_k = torch.isin(top_indices[i], current_tarets).sum().float()
+                user_recall = hits_in_k / current_tarets.size(0)
+                recall_list.append(user_recall.item()) 
+
+    return sum(hr_list)/len(hr_list), sum(mrr_list)/len(mrr_list), sum(ndcg_list)/len(ndcg_list), sum(recall_list)/len(recall_list)
 
 def bpr_loss(u_emb, pos_i_emb, neg_i_emb):
     """
@@ -85,12 +95,25 @@ def bpr_loss(u_emb, pos_i_emb, neg_i_emb):
     pos_scores = torch.sum(u_emb * pos_i_emb, dim=1)
     neg_scores = torch.sum(u_emb * neg_i_emb, dim=1)
 
-   
     loss = -torch.mean(torch.nn.functional.logsigmoid(pos_scores - neg_scores))
     return loss
 
 
-def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta):
+def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict):
+    with torch.no_grad():
+        scores = torch.matmul(u_batch, i_g_embeddings.t())
+
+        users_list = users.tolist()
+        for idx, user in enumerate(users_list):
+            if user in train_user_dict:
+                train_items = train_user_dict[user]
+                scores[idx, train_items] = -float('inf')
+
+        _, hard_neg_indices = torch.topk(scores, k=1, dim=1) #najwyzszy wynik wsrod nieobejrzanych
+    
+    return i_g_embeddings[hard_neg_indices.squeeze()] #embeddingi znalezionych hard neg
+
+def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict):
     print(f"Używam urządzenia: {DEVICE}")
 
     epoch_loses=[]
@@ -106,12 +129,6 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta):
 
     
     print("Rozpoczynam trening...")
-
-    # Early stopping
-    best_loss = float('inf')
-    patience = 15
-    patience_counter = 0
-
     for epoch in range(EPOCHS):
         model.train()
         total_loss = 0
@@ -133,7 +150,11 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta):
             # Wybór embeddingów dla batcha
             u_batch = u_g_embeddings[users]
             pos_i_batch = i_g_embeddings[pos_items]
-            neg_i_batch = i_g_embeddings[neg_items]
+
+            if USE_HNS:
+                neg_i_batch=get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict)
+            else:
+                neg_i_batch = i_g_embeddings[neg_items]
 
             # Loss i Backprop
             loss = bpr_loss(u_batch, pos_i_batch, neg_i_batch)
@@ -148,23 +169,8 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta):
         epoch_loses.append(avg_loss)
         print(f"Epoch {epoch+1:02d}/{EPOCHS} | Loss: {avg_loss:.4f} | Time: {time.time() - start_time:.2f}s")
 
-        if avg_loss < best_loss:
-            best_loss = avg_loss
-            patience_counter = 0
-            torch.save(model.state_dict(), 'ngcf_model_best.pth')
-        else:
-            patience_counter += 1
-            print(f"Brak poprawy od {patience_counter} epok.")
 
-        if patience_counter >= patience:
-            print(f"Early stopping! Brak poprawy od {patience} epok.")
-            print(f"Koniec na epoce {epoch+1}.")
-            break
-
-        if(epoch + 1) % 10 == 0 :
-            torch.save(model.state_dict(), f'ngcf_model_checkpoint.pth') 
-
-    model.load_state_dict(torch.load('ngcf_model_best.pth'))
+    
     torch.save(model.state_dict(), 'ngcf_model.pth')
     print("Model zapisany jako 'ngcf_model.pth'")
     return epoch_loses
@@ -175,17 +181,18 @@ def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_d
     test_loader = DataLoader(test_pairs, batch_size=1024, shuffle=False)
 
     print("Obliczanie metryk...")
-    hr, mrr, ndcg = evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20)
+    hr, mrr, ndcg, recall = evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20)
 
     print(f"\nWyniki @K=20:")
     print(f"Hit Rate: {hr:.4f}")
     print(f"MRR:      {mrr:.4f}")
     print(f"NDCG:     {ndcg:.4f}")
+    print(f"Recall:   {recall:.4f}")
 
     
-    metrics = ['Hit Rate', 'MRR', 'NDCG']
-    values = [hr, mrr, ndcg]
-    colors = ['#4e79a7', '#f28e2b', '#e15759']
+    metrics = ['Hit Rate', 'MRR', 'NDCG', 'Recall']
+    values = [hr, mrr, ndcg, recall]
+    colors = ['#4e79a7', '#f28e2b', '#e15759', "#57e17a"]
 
     plt.figure(figsize=(10, 6))
     bars = plt.bar(metrics, values, color=colors)
@@ -231,14 +238,7 @@ def main():
     
     adj_matrix = adj_matrix.to(DEVICE)
 
-    if not os.path.exists(NGCF_PATH):
-        loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta)
-        plot_training_loss(loses)
-
-    train_user_dict = {} #robię słownik dla rzeczy ktore widzial uzytkownik
-    #nie jestem pewna, czy to jest najlepszy sposób na poprawienie modelu
-    #ale w evaluation methods model chyba bierze tylko dane z treningu 
-    # jako wyniki for some reason
+    train_user_dict = {} 
     
     for pair in train_pairs:
         u = int(pair[0])
@@ -246,6 +246,22 @@ def main():
         if u not in train_user_dict:
             train_user_dict[u] = []
         train_user_dict[u].append(i)
+
+
+    if not os.path.exists(NGCF_PATH):
+        
+        print("Uzyc Hard negative sampling? T/N")
+        hns_response = input()
+        if hns_response=='N':
+            USE_HNS=False
+            print("robimy bez")
+        else:
+            print("robimy hns")
+
+        loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict)
+        plot_training_loss(loses)
+
+    
 
     print(f"Używam urządzenia: {DEVICE}")
     
@@ -258,9 +274,6 @@ def main():
     model.to(DEVICE)
     
     evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict)
-
-
-
 
 if __name__ == "__main__":
     main()
