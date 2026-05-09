@@ -13,6 +13,7 @@ from data_utils import prepare_or_load_dataset, MovieLensTrainDataset
 
 CSV_PATH = 'archive/rating.csv' 
 NGCF_PATH = 'ngcf_model.pth'
+HNS_PATH = 'ngcf_model_hns.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 BATCH_SIZE = 512
@@ -23,7 +24,7 @@ LR = 0.001
 EPOCHS = 34
 DECAY = 1e-5
 
-PROC_DANYCH = 0.1 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
+PROC_DANYCH = 0.7 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
 def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
     model.eval()
@@ -168,13 +169,16 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
         epoch_loses.append(avg_loss)
         print(f"Epoch {epoch+1:02d}/{EPOCHS} | Loss: {avg_loss:.4f} | Time: {time.time() - start_time:.2f}s")
 
-    
-    torch.save(model.state_dict(), 'ngcf_model.pth')
-    print("Model zapisany jako 'ngcf_model.pth'")
+    if use_hns:
+        torch.save(model.state_dict(), 'ngcf_model_hns.pth')
+    else:
+        torch.save(model.state_dict(), 'ngcf_model.pth')
+
+    print("Model zapisany")
     return epoch_loses
 
 
-def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict):
+def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict, use_hns):
     
     test_loader = DataLoader(test_pairs, batch_size=1024, shuffle=False)
 
@@ -200,20 +204,33 @@ def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_d
         yval = bar.get_height()
         plt.text(bar.get_x() + bar.get_width()/2, yval + 0.005, f'{yval:.4f}', ha='center', va='bottom', fontsize=12)
 
-    plt.title('Metryki Ewaluacji Modelu Rekomendacyjnego (@K=20)', fontsize=14)
+
+    prefix = ''
+    if use_hns:
+        prefix="HNS"
+    else:
+        prefix="NO_HNS"
+
+    plt.title(f'({prefix}) Metryki Ewaluacji Modelu Rekomendacyjnego (@K=20)', fontsize=14)
     plt.ylabel('Wartość', fontsize=12)
     plt.ylim(0, max(values) + 0.1) 
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     
-    plt.savefig(f'../wykresy/Wyniki_dla_{int(PROC_DANYCH*100)}_proc_danych.png')
+    plt.savefig(f'wykresy/{prefix}_Wyniki_dla_{int(PROC_DANYCH*100)}_proc_danych.png')
     plt.show()
 
 
-def plot_training_loss(epoch_losses):
+def plot_training_loss(epoch_losses, use_hns):
+    prefix = ''
+    if use_hns:
+        prefix="HNS"
+    else:
+        prefix="NO_HNS"
+
     plt.figure(figsize=(10, 5))
     plt.plot(range(1, len(epoch_losses) + 1), epoch_losses, marker='o', color='#2c3e50', linestyle='-', linewidth=2)
     
-    plt.title('Krzywa uczenia (BPR Loss)', fontsize=14)
+    plt.title(f'({prefix}) Krzywa uczenia (BPR Loss)', fontsize=14)
     plt.xlabel('Epoka', fontsize=12)
     plt.ylabel('Średni Loss', fontsize=12)
     plt.grid(True, which='both', linestyle='--', alpha=0.5)
@@ -223,7 +240,7 @@ def plot_training_loss(epoch_losses):
         plt.annotate(f'{loss:.4f}', (i+1, epoch_losses[i]), textcoords="offset points", xytext=(0,10), ha='center')
 
     plt.tight_layout()
-    plt.savefig(f'../wykresy/Loss_plot_{int(PROC_DANYCH*100)}proc.png')
+    plt.savefig(f'wykresy/{prefix}_Loss_plot_{int(PROC_DANYCH*100)}proc.png')
     plt.show()
 
 
@@ -250,7 +267,7 @@ def main():
         
         print("Uzyc Hard negative sampling? T/N")
         hns_response = input()
-        if hns_response=='N':
+        if hns_response=='N' or hns_response=='n':
             use_hns=False
             print("robimy bez")
         else:
@@ -258,7 +275,7 @@ def main():
             print("robimy hns")
 
         loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, use_hns)
-        plot_training_loss(loses)
+        plot_training_loss(loses, use_hns)
 
     
 
@@ -272,7 +289,7 @@ def main():
 
     model.to(DEVICE)
     
-    evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict)
+    evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict, use_hns)
 
 if __name__ == "__main__":
     main()
