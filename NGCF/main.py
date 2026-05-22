@@ -24,7 +24,7 @@ LR = 0.001
 EPOCHS = 34
 DECAY = 1e-5
 
-PROC_DANYCH = 0.7 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
+PROC_DANYCH = 0.05 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
 def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
     model.eval()
@@ -98,8 +98,29 @@ def bpr_loss(u_emb, pos_i_emb, neg_i_emb):
     loss = -torch.mean(torch.nn.functional.logsigmoid(pos_scores - neg_scores))
     return loss
 
+### ----- HARD NEGATIVE SAMPLING ----- ###
 
-def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict):
+# def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict):
+#     with torch.no_grad():
+#         scores = torch.matmul(u_batch, i_g_embeddings.t())
+#
+#         users_list = users.tolist()
+#         for idx, user in enumerate(users_list):
+#             if user in train_user_dict:
+#                 train_items = train_user_dict[user]
+#                 scores[idx, train_items] = -float('inf')
+#
+#         _, hard_neg_indices = torch.topk(scores, k=1, dim=1) #najwyzszy wynik wsrod nieobejrzanych
+#
+#     return i_g_embeddings[hard_neg_indices.squeeze()] #embeddingi znalezionych hard neg
+
+### ----- SEMI-HARD NEGATIVE SAMPLING ----- ### - Dżery - 22.05.2026
+
+def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict, min_rank=10, max_rank=50):
+    """
+    Pobiera Semi-Hard Negatives: omija `min_rank` najlepszych (zbyt ryzykowne fałszywe negatywy),
+    i losuje przedmiot z przedziału od `min_rank` do `max_rank`.
+    """
     with torch.no_grad():
         scores = torch.matmul(u_batch, i_g_embeddings.t())
 
@@ -107,11 +128,22 @@ def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict):
         for idx, user in enumerate(users_list):
             if user in train_user_dict:
                 train_items = train_user_dict[user]
+                # Blokujemy itemy treningowe
                 scores[idx, train_items] = -float('inf')
 
-        _, hard_neg_indices = torch.topk(scores, k=1, dim=1) #najwyzszy wynik wsrod nieobejrzanych
-    
-    return i_g_embeddings[hard_neg_indices.squeeze()] #embeddingi znalezionych hard neg
+        # Zamiast brać 1 najlepszy, bierzemy paczkę (np. top 50 najlepszych)
+        _, top_k_indices = torch.topk(scores, k=max_rank, dim=1)
+
+        batch_size = u_batch.size(0)
+
+        # Dla każdego usera losujemy pozycję rankingu w bezpiecznym przedziale (np. 10 - 49)
+        # device=u_batch.device zapewnia, że tensory są na GPU jeśli tam jest model
+        random_ranks = torch.randint(low=min_rank, high=max_rank, size=(batch_size,), device=u_batch.device)
+
+        # Wyciągamy finalne ID przedmiotów z wylosowanych pozycji
+        semi_hard_neg_indices = top_k_indices[torch.arange(batch_size), random_ranks]
+
+    return i_g_embeddings[semi_hard_neg_indices]
 
 def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, use_hns=True):
     print(f"Używam urządzenia: {DEVICE}")
@@ -159,6 +191,12 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
             # Loss i Backprop
             loss = bpr_loss(u_batch, pos_i_batch, neg_i_batch)
             loss.backward()
+
+            # --- DODANE: Gradient Clipping ---
+            # Nakłada limit na długość kroku, zapobiegając "eksplozji" błędu.
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            # ---------------------------------
+
             optimizer.step()
 
             total_loss += loss.item()
