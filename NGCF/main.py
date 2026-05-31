@@ -300,20 +300,19 @@ def main():
             train_user_dict[u] = []
         train_user_dict[u].append(i)
 
-    if not os.path.exists(NGCF_PATH):
+    print("Uzyc Hard negative sampling? T/N")
+    hns_response = input()
+    path_check = ''
+    if hns_response=='N' or hns_response=='n':
+        use_hns=False
+        print("robimy bez")
+        path_check=NGCF_PATH
+    else:
+        use_hns=True
+        print("robimy hns")
+        path_check=HNS_PATH
 
-        print("Uzyc Hard negative sampling? T/N")
-        hns_response = input()
-        path_check = ''
-        if hns_response=='N' or hns_response=='n':
-            use_hns=False
-            print("robimy bez")
-            path_check=NGCF_PATH
-        else:
-            use_hns=True
-            print("robimy hns")
-            path_check=HNS_PATH
-
+    if not os.path.exists(path_check):
         loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, use_hns)
         plot_training_loss(loses, use_hns)
 
@@ -323,7 +322,7 @@ def main():
     
     model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS, dropouts=DROPOUTS)
 
-    state_dict = torch.load(NGCF_PATH, map_location=DEVICE)
+    state_dict = torch.load(path_check, map_location=DEVICE)
 
     model.load_state_dict(state_dict)
 
