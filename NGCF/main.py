@@ -24,7 +24,7 @@ LR = 0.001
 EPOCHS = 40
 DECAY = 1e-5
 
-PROC_DANYCH = 0.6 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
+PROC_DANYCH = 0.01 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
 def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
     model.eval()
@@ -160,7 +160,12 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=DECAY)
 
     
-    print("Rozpoczynam trening...")
+    start_time_str = time.strftime("%Y-%m-%d %H:%M:%S")
+    print(f"Rozpoczynam trening... (Czas startu: {start_time_str})")
+    total_batches = EPOCHS * len(train_loader)
+    ema_batch_time = None
+    alpha = 0.05 # Współczynnik wygładzania - im mniejszy, tym rzadsze "skoki"
+    last_time = time.time()
     for epoch in range(EPOCHS):
         model.train()
         total_loss = 0
@@ -199,10 +204,29 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
 
             optimizer.step()
 
-            total_loss += loss.item()
+            #do wyswietkania remaining time
+            current_time = time.time()
+            batch_duration = current_time - last_time
+            last_time = current_time
 
-            pbar.set_postfix({'loss': loss.item()})
-
+            
+            if ema_batch_time is None:
+                ema_batch_time = batch_duration
+            else:
+                ema_batch_time = alpha * batch_duration + (1 - alpha) * ema_batch_time
+                
+            batches_done = epoch * len(train_loader) + batch_i + 1
+            remaining_batches = total_batches - batches_done
+            
+            eta_seconds = ema_batch_time * remaining_batches
+            
+            m, s = divmod(int(eta_seconds), 60)
+            h, m = divmod(m, 60)
+            
+            
+            red_eta_str = f"\033[91mOgólne ETA: {h:02d}:{m:02d}:{s:02d}\033[0m"
+            
+            pbar.set_postfix_str(f"loss: {loss.item():.4f} | {red_eta_str}")
         avg_loss = total_loss / len(train_loader)
         epoch_loses.append(avg_loss)
         print(f"Epoch {epoch+1:02d}/{EPOCHS} | Loss: {avg_loss:.4f} | Time: {time.time() - start_time:.2f}s")
@@ -249,7 +273,7 @@ def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_d
     else:
         prefix="NO_HNS"
 
-    plt.title(f'({prefix}) Metryki Ewaluacji Modelu Rekomendacyjnego (@K=20)', fontsize=14)
+    plt.title(f'({prefix}) Metryki Ewaluacji Modelu Rekomendacyjnego (@K=20) dla {PROC_DANYCH}%', fontsize=14)
     plt.ylabel('Wartość', fontsize=12)
     plt.ylim(0, max(values) + 0.1) 
     plt.grid(axis='y', linestyle='--', alpha=0.7)
@@ -268,7 +292,7 @@ def plot_training_loss(epoch_losses, use_hns):
     plt.figure(figsize=(10, 5))
     plt.plot(range(1, len(epoch_losses) + 1), epoch_losses, marker='o', color='#2c3e50', linestyle='-', linewidth=2)
     
-    plt.title(f'({prefix}) Krzywa uczenia (BPR Loss)', fontsize=14)
+    plt.title(f'({prefix}) Krzywa uczenia (BPR Loss) dla {PROC_DANYCH} %', fontsize=14)
     plt.xlabel('Epoka', fontsize=12)
     plt.ylabel('Średni Loss', fontsize=12)
     plt.grid(True, which='both', linestyle='--', alpha=0.5)
