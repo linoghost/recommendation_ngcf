@@ -203,6 +203,7 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
             # ---------------------------------
 
             optimizer.step()
+            total_loss += loss.item()
 
             #do wyswietkania remaining time
             current_time = time.time()
