@@ -7,8 +7,21 @@ import os
 import pickle
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
+from data_sets.movielens import load_and_process_movielens
+from data_sets.yelp import load_and_process_yelp
+
 
 PROCESSED_DIR = 'data_processed'
+
+def get_dataset_loader(dataset_name, file_path, proc_danych):
+    if dataset_name == 'movielens':
+        return load_and_process_movielens(file_path, proc_danych)
+    elif dataset_name == 'yelp':
+        return load_and_process_yelp(file_path, proc_danych)
+    #elif dataset_name == 'amazon_books':
+    #   return load_and_process_amazon_books(file_path, proc_danych)
+    else:
+        raise ValueError(f"Nieobsługiwany zbiór danych: {dataset_name}")
 
 class MovieLensTrainDataset(data.Dataset):
     def __init__(self, train_pairs, n_users, n_items):
@@ -36,36 +49,8 @@ class MovieLensTrainDataset(data.Dataset):
 
         return user, pos_item, neg_item
 
-def load_and_process_movielens(file_path, proc_danych):
-    print(f"Wczytywanie pliku CSV: {file_path}")
-    df = pd.read_csv(file_path)
-
-    if proc_danych<1:
-        print("redukcja danych o", proc_danych*100, "%")
-        unique_users = df['userId'].unique()
-        # Wybieramy losowe 25% użytkowników
-        sampled_users = np.random.choice(unique_users, size=int(len(unique_users) * proc_danych), replace=False)
-        # Zostawiamy TYLKO tych użytkowników, ale z CAŁĄ ich historią
-        df = df[df['userId'].isin(sampled_users)].copy()
-    
-    # zostawiamy tylko oceny wieksze od 4 bo wtedy mamy takie realne zainteresowanie czyms
-    df = df[df['rating'] >= 4.0].copy()
-
-    # remapping zeby zamiast id=1928372 bylo 1, 2, 3 itd
-    user_encoder = LabelEncoder()
-    item_encoder = LabelEncoder()
-    df['user_id_idx'] = user_encoder.fit_transform(df['userId'])
-    df['item_id_idx'] = item_encoder.fit_transform(df['movieId'])
-
-    n_users = df['user_id_idx'].nunique() #ile mamy unikalnych ziutków
-    n_items = df['item_id_idx'].nunique()
-
-    return df, n_users, n_items, user_encoder, item_encoder
-
-
 
 def create_adj_matrix(n_users, n_items, user_item_pairs):
-    
 
     # user x item
     rows = [pair[0] for pair in user_item_pairs]
@@ -84,20 +69,18 @@ def create_adj_matrix(n_users, n_items, user_item_pairs):
     # stopień węzła (suma wierszy)
     rowsum = np.array(adj_mat.sum(1))
 
-    # Obliczanie D^-1/2 (normalizacja, żeby dany popularny film nie zakrzywiał wyników)
+    # obliczanie D^-1/2 (normalizacja, żeby dany popularny film nie zakrzywiał wyników)
     d_inv = np.power(rowsum, -0.5).flatten()
     d_inv[np.isinf(d_inv)] = 0.
     d_mat = sp.diags(d_inv, format='csr')
 
-    # MnożenieMnożenie macierzy rzadkich: D^-1/2 * A * D^-1/2
+    # mnożenieMnożenie macierzy rzadkich: D^-1/2 * A * D^-1/2
     norm_adj = d_mat.dot(adj_mat).dot(d_mat)
 
-    
-
-    # 4. Konwersja do PyTorch Sparse (bez gęstych tablic pośrednich)
+    # konwersja do PyTorch Sparse (bez gęstych tablic pośrednich)
     norm_adj = norm_adj.tocoo()
 
-    # Upewniamy się, że typy danych są poprawne
+    # upewniamy się, że typy danych są poprawne
     indices = np.vstack((norm_adj.row, norm_adj.col))
     values = norm_adj.data
 
@@ -105,54 +88,58 @@ def create_adj_matrix(n_users, n_items, user_item_pairs):
     v = torch.FloatTensor(values)
     shape = norm_adj.shape
 
-    return torch.sparse.FloatTensor(i, v, torch.Size(shape))
+    return torch.sparse_coo_tensor.FloatTensor(indicates=i, values=v, size=shape)
 
-def save_processed_data(adj_matrix, train_pairs, test_pairs, n_users, n_items, encoders):
-    if not os.path.exists(PROCESSED_DIR):
-        os.makedirs(PROCESSED_DIR)
+def save_processed_data(dataset_name, adj_matrix, train_pairs, test_pairs, n_users, n_items, encoders):
+    target_dir = os.path.join(PROCESSED_DIR, dataset_name)
+    if not os.path.exists(target_dir):
+        os.makedirs(target_dir)
 
-    torch.save(adj_matrix, os.path.join(PROCESSED_DIR, 'adj_matrix.pt'))
+    torch.save(adj_matrix, os.path.join(target_dir, 'adj_matrix.pt'))
 
-    with open(os.path.join(PROCESSED_DIR, 'train_data.pkl'), 'wb') as f:
+    with open(os.path.join(target_dir, 'train_data.pkl'), 'wb') as f:
         pickle.dump(train_pairs, f)
     
-    with open(os.path.join(PROCESSED_DIR, 'test_data.pkl'), 'wb') as f:
+    with open(os.path.join(target_dir, 'test_data.pkl'), 'wb') as f:
         pickle.dump(test_pairs, f)
 
     meta = {'n_users': n_users, 'n_items': n_items, 'encoders': encoders}
-    with open(os.path.join(PROCESSED_DIR, 'meta_data.pkl'), 'wb') as f:
+    with open(os.path.join(target_dir, 'meta_data.pkl'), 'wb') as f:
         pickle.dump(meta, f)
     print("Dane zapisane do cache.")
 
 
-def load_processed_data():
-    if not os.path.exists(os.path.join(PROCESSED_DIR, 'adj_matrix.pt')):
+def load_processed_data(dataset_name):
+    target_dir = os.path.join(PROCESSED_DIR, dataset_name)
+    if not os.path.exists(os.path.join(target_dir, 'adj_matrix.pt')):
         return None
 
-    print("Wczytywanie danych z cache...")
+    print(f"Wczytywanie danych z cache z folderu {target_dir}...")
     try:
-        adj_matrix = torch.load(os.path.join(PROCESSED_DIR, 'adj_matrix.pt'))
-        with open(os.path.join(PROCESSED_DIR, 'train_data.pkl'), 'rb') as f:
+        adj_matrix = torch.load(os.path.join(target_dir, 'adj_matrix.pt'))
+        with open(os.path.join(target_dir, 'train_data.pkl'), 'rb') as f:
             train_pairs = pickle.load(f)
         
-        with open(os.path.join(PROCESSED_DIR, 'test_data.pkl'), 'rb') as f:
+        with open(os.path.join(target_dir, 'test_data.pkl'), 'rb') as f:
             test_pairs = pickle.load(f)
 
-        with open(os.path.join(PROCESSED_DIR, 'meta_data.pkl'), 'rb') as f:
+        with open(os.path.join(target_dir, 'meta_data.pkl'), 'rb') as f:
             meta = pickle.load(f)
         return adj_matrix, train_pairs, test_pairs, meta['n_users'], meta['n_items'], meta
+    
     except Exception as e:
         print(f"Błąd cache: {e}")
         return None
 
-def prepare_or_load_dataset(csv_path, proc_danych):
-    data_loaded = load_processed_data()
+
+def prepare_or_load_dataset(dataset_name, csv_path, proc_danych):
+    data_loaded = load_processed_data(dataset_name)
 
     if data_loaded is not None:
         return data_loaded
 
     
-    df, n_users, n_items, u_enc, i_enc = load_and_process_movielens(csv_path,proc_danych)
+    df, n_users, n_items, u_enc, i_enc = get_dataset_loader(dataset_name, csv_path, proc_danych)
     train_df, test_df = train_test_split(df, test_size=0.2, random_state=42)
 
     valid_users = train_df['user_id_idx'].unique()
@@ -168,7 +155,7 @@ def prepare_or_load_dataset(csv_path, proc_danych):
     adj_matrix = create_adj_matrix(n_users, n_items, train_pairs)
 
     encoders = {'user': u_enc, 'item': i_enc}
-    save_processed_data(adj_matrix, train_pairs, test_pairs, n_users, n_items, encoders)
+    save_processed_data(dataset_name, adj_matrix, train_pairs, test_pairs, n_users, n_items, encoders)
 
     meta = {'n_users': n_users, 'n_items': n_items, 'encoders': encoders}
     return adj_matrix, train_pairs, test_pairs, n_users, n_items, meta

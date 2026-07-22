@@ -6,14 +6,13 @@ from tqdm import tqdm
 import os
 import matplotlib.pyplot as plt
 
-
 from model import NGCF
 from data_utils import prepare_or_load_dataset, MovieLensTrainDataset
 
-
+DATA_SET = 'movielens'  # or 'yelp' or 'amazon_books'
 CSV_PATH = 'archive/rating.csv' 
-NGCF_PATH = 'ngcf_model.pth'
-HNS_PATH = 'ngcf_model_hns.pth'
+NGCF_PATH = f'ngcf_model_{DATA_SET}.pth'
+HNS_PATH = f'ngcf_model_hns_{DATA_SET}.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 BATCH_SIZE = 512
@@ -309,9 +308,9 @@ def plot_training_loss(epoch_losses, use_hns):
 
 def main():
     try:
-        adj_matrix, train_pairs, test_pairs, n_users, n_items, meta = prepare_or_load_dataset(CSV_PATH, PROC_DANYCH)
+        adj_matrix, train_pairs, test_pairs, n_users, n_items, meta = prepare_or_load_dataset(DATA_SET, CSV_PATH, PROC_DANYCH)
     except FileNotFoundError:
-        print(f"Błąd: Nie znaleziono pliku '{CSV_PATH}'. Pobierz MovieLens dataset.")
+        print(f"Błąd: Nie znaleziono pliku '{CSV_PATH}'. Pobierz dataset.")
         return
     
     adj_matrix = adj_matrix.to(DEVICE)
@@ -330,11 +329,11 @@ def main():
     path_check = ''
     if hns_response=='N' or hns_response=='n':
         use_hns=False
-        print("robimy bez")
+        print("Robimy bez HNS")
         path_check=NGCF_PATH
     else:
         use_hns=True
-        print("robimy hns")
+        print("Robimy HNS")
         path_check=HNS_PATH
 
     if not os.path.exists(path_check):
