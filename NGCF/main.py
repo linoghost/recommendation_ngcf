@@ -9,10 +9,6 @@ import matplotlib.pyplot as plt
 from model import NGCF
 from data_utils import prepare_or_load_dataset, MovieLensTrainDataset
 
-DATA_SET = 'movielens'  # or 'yelp' or 'amazon_books'
-CSV_PATH = 'archive/rating.csv' 
-NGCF_PATH = f'ngcf_model_{DATA_SET}.pth'
-HNS_PATH = f'ngcf_model_hns_{DATA_SET}.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 BATCH_SIZE = 512
@@ -307,6 +303,31 @@ def plot_training_loss(epoch_losses, use_hns):
 
 
 def main():
+    print("=== System rekomendacji NGCF === ")
+    print("Dostępne zbiory danych:")
+    print("1. MovieLens")
+    print("2. Yelp2018")
+    dataset_choice = input() 
+
+    if dataset_choice == '1':
+        DATA_SET = 'movielens' 
+        CSV_PATH = 'archive/rating.csv'
+    elif dataset_choice == '2':
+        DATA_SET = "yelp" 
+        CSV_PATH = 'archive/yelp2018.csv'
+    elif dataset_choice == "3":
+        DATA_SET = "amazon_books" 
+        CSV_PATH = 'archive/amazon_books.csv'
+    else:
+        print("Błędny wybór. Zamykamy program")
+        return
+    
+    print(f"\nWybrano zbiór: {DATA_SET}")
+    print(f"Ścieżka do pliku: {CSV_PATH}")
+
+    NGCF_PATH = f'ngcf_model_{DATA_SET}.pth'
+    HNS_PATH = f'ngcf_model_hns_{DATA_SET}.pth'
+
     try:
         adj_matrix, train_pairs, test_pairs, n_users, n_items, meta = prepare_or_load_dataset(DATA_SET, CSV_PATH, PROC_DANYCH)
     except FileNotFoundError:
