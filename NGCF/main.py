@@ -19,7 +19,7 @@ LR = 0.001
 EPOCHS = 40
 DECAY = 1e-5
 
-PROC_DANYCH = 1.7 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
+PROC_DANYCH = 0.1 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
 def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
     model.eval()
@@ -310,11 +310,12 @@ def main():
         print("Wybierz zbiór danych do treningu:")
         print("1. MovieLens")
         print("2. Yelp2018")
+        print("3. Amazon Books")
         dataset_choice = input() 
 
         if dataset_choice == '1':
             DATA_SET = 'movielens' 
-            CSV_PATH = 'archive/movielens/rsettating.csv'
+            CSV_PATH = 'archive/movielens/rating.csv'
             choice_flag=False
         elif dataset_choice == '2':
             DATA_SET = "yelp" 
@@ -322,7 +323,7 @@ def main():
             choice_flag=False
         elif dataset_choice == "3":
             DATA_SET = "amazon_books" 
-            CSV_PATH = 'archive/amazon_books/amazon_books.csv'
+            CSV_PATH = 'archive/amazon_books/amazon_reviews.csv'
             choice_flag=False
         else:
             print(f"Błędny wybór :(\n")
@@ -331,6 +332,7 @@ def main():
     print(f"Wybrano zbiór: {DATA_SET}")
     print(f"Ścieżka do pliku: {CSV_PATH}\n")
 
+    
     print("Czy przeliczyć zbiór danych od nowa (nadpisać stary cache)? T/N")
     rebuild_response = input().strip().lower()
     force_rebuild = True if rebuild_response == 't' else False

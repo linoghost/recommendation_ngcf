@@ -9,7 +9,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from data_sets.movielens import load_and_process_movielens
 from data_sets.yelp import load_and_process_yelp
-
+from data_sets.amazon_books import load_and_process_amazon_books
 
 PROCESSED_DIR = 'data_processed'
 
@@ -18,8 +18,8 @@ def get_dataset_loader(dataset_name, file_path, proc_danych):
         return load_and_process_movielens(file_path, proc_danych)
     elif dataset_name == 'yelp':
         return load_and_process_yelp(file_path, proc_danych)
-    #elif dataset_name == 'amazon_books':
-    #   return load_and_process_amazon_books(file_path, proc_danych)
+    elif dataset_name == 'amazon_books':
+       return load_and_process_amazon_books(file_path, proc_danych)
     else:
         raise ValueError(f"Nieobsługiwany zbiór danych: {dataset_name}")
 
