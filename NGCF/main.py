@@ -303,27 +303,33 @@ def plot_training_loss(epoch_losses, use_hns):
 
 
 def main():
-    print("=== System rekomendacji NGCF === ")
-    print("Dostępne zbiory danych:")
-    print("1. MovieLens")
-    print("2. Yelp2018")
-    dataset_choice = input() 
+    print("  #  System rekomendacji NGCF  #")
 
-    if dataset_choice == '1':
-        DATA_SET = 'movielens' 
-        CSV_PATH = 'archive/rating.csv'
-    elif dataset_choice == '2':
-        DATA_SET = "yelp" 
-        CSV_PATH = 'archive/yelp2018.csv'
-    elif dataset_choice == "3":
-        DATA_SET = "amazon_books" 
-        CSV_PATH = 'archive/amazon_books.csv'
-    else:
-        print("Błędny wybór. Zamykamy program")
-        return
+    choice_flag = True
+    while(choice_flag):
+        print("Wybierz zbiór danych do treningu:")
+        print("1. MovieLens")
+        print("2. Yelp2018")
+        dataset_choice = input() 
+
+        if dataset_choice == '1':
+            DATA_SET = 'movielens' 
+            CSV_PATH = 'archive/rating.csv'
+            choice_flag=False
+        elif dataset_choice == '2':
+            DATA_SET = "yelp" 
+            CSV_PATH = 'archive/yelp2018.csv'
+            choice_flag=False
+        elif dataset_choice == "3":
+            DATA_SET = "amazon_books" 
+            CSV_PATH = 'archive/amazon_books.csv'
+            choice_flag=False
+        else:
+            print(f"Błędny wybór :(\n")
+                
     
-    print(f"\nWybrano zbiór: {DATA_SET}")
-    print(f"Ścieżka do pliku: {CSV_PATH}")
+    print(f"Wybrano zbiór: {DATA_SET}")
+    print(f"Ścieżka do pliku: {CSV_PATH}\n")
 
     NGCF_PATH = f'ngcf_model_{DATA_SET}.pth'
     HNS_PATH = f'ngcf_model_hns_{DATA_SET}.pth'
@@ -350,11 +356,11 @@ def main():
     path_check = ''
     if hns_response=='N' or hns_response=='n':
         use_hns=False
-        print("Robimy bez HNS")
+        print("Trening ze strategią Uniform Sampling (US)")
         path_check=NGCF_PATH
     else:
         use_hns=True
-        print("Robimy HNS")
+        print("Trening ze strategią Hard Negative Sampling (HNS)")
         path_check=HNS_PATH
 
     if not os.path.exists(path_check):
