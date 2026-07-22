@@ -22,6 +22,9 @@ def load_and_process_yelp(file_path, proc_danych):
 
     df = df[df[rating_col] >= 4.0].copy()
 
+    if len(df) == 0:
+        raise ValueError("Po odruceniu ocen < 4.0 zbiór danych jest pusty. Zwiększ PROC_DANYCH.")
+
     # remapping zeby zamiast id=1928372 bylo 1, 2, 3 itd
     user_encoder = LabelEncoder()
     item_encoder = LabelEncoder()

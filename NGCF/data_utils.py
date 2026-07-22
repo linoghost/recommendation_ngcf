@@ -88,7 +88,7 @@ def create_adj_matrix(n_users, n_items, user_item_pairs):
     v = torch.FloatTensor(values)
     shape = norm_adj.shape
 
-    return torch.sparse_coo_tensor.FloatTensor(indicates=i, values=v, size=shape)
+    return torch.sparse_coo_tensor(indices=i, values=v, size=shape)
 
 def save_processed_data(dataset_name, adj_matrix, train_pairs, test_pairs, n_users, n_items, encoders):
     target_dir = os.path.join(PROCESSED_DIR, dataset_name)
