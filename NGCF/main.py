@@ -19,7 +19,7 @@ LR = 0.001
 EPOCHS = 40
 DECAY = 1e-5
 
-PROC_DANYCH = 0.7 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
+PROC_DANYCH = 1.7 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
 def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
     model.eval()
@@ -331,11 +331,16 @@ def main():
     print(f"Wybrano zbiór: {DATA_SET}")
     print(f"Ścieżka do pliku: {CSV_PATH}\n")
 
+    print("Czy przeliczyć zbiór danych od nowa (nadpisać stary cache)? T/N")
+    rebuild_response = input().strip().lower()
+    force_rebuild = True if rebuild_response == 't' else False
+
+
     NGCF_PATH = f'ngcf_model_{DATA_SET}.pth'
     HNS_PATH = f'ngcf_model_hns_{DATA_SET}.pth'
 
     try:
-        adj_matrix, train_pairs, test_pairs, n_users, n_items, meta = prepare_or_load_dataset(DATA_SET, CSV_PATH, PROC_DANYCH)
+        adj_matrix, train_pairs, test_pairs, n_users, n_items, meta = prepare_or_load_dataset(DATA_SET, CSV_PATH, PROC_DANYCH, force_rebuild)
     except FileNotFoundError:
         print(f"Błąd: Nie znaleziono pliku '{CSV_PATH}'. Pobierz dataset.")
         return
@@ -352,15 +357,15 @@ def main():
         train_user_dict[u].append(i)
 
     print("Uzyc Hard negative sampling? T/N")
-    hns_response = input()
+    hns_response = input().strip().lower()
     path_check = ''
-    if hns_response=='N' or hns_response=='n':
+    if hns_response=='n':
         use_hns=False
-        print("Trening ze strategią Uniform Sampling (US)")
+        print(f"Trening ze strategią Uniform Sampling (US)\n")
         path_check=NGCF_PATH
     else:
         use_hns=True
-        print("Trening ze strategią Hard Negative Sampling (HNS)")
+        print(f"Trening ze strategią Hard Negative Sampling (HNS)\n")
         path_check=HNS_PATH
 
     if not os.path.exists(path_check):
@@ -368,7 +373,6 @@ def main():
         plot_training_loss(loses, use_hns)
 
     
-
     print(f"Używam urządzenia: {DEVICE}")
     
     model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS, dropouts=DROPOUTS)

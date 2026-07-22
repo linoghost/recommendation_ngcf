@@ -106,7 +106,7 @@ def save_processed_data(dataset_name, adj_matrix, train_pairs, test_pairs, n_use
     meta = {'n_users': n_users, 'n_items': n_items, 'encoders': encoders}
     with open(os.path.join(target_dir, 'meta_data.pkl'), 'wb') as f:
         pickle.dump(meta, f)
-    print("Dane zapisane do cache.")
+    print(f"Dane zapisane do cache.\n")
 
 
 def load_processed_data(dataset_name):
@@ -114,7 +114,7 @@ def load_processed_data(dataset_name):
     if not os.path.exists(os.path.join(target_dir, 'adj_matrix.pt')):
         return None
 
-    print(f"Wczytywanie danych z cache z folderu {target_dir}...")
+    print(f"Wczytywanie danych z cache z folderu {target_dir}...\n")
     try:
         adj_matrix = torch.load(os.path.join(target_dir, 'adj_matrix.pt'))
         with open(os.path.join(target_dir, 'train_data.pkl'), 'rb') as f:
@@ -132,13 +132,13 @@ def load_processed_data(dataset_name):
         return None
 
 
-def prepare_or_load_dataset(dataset_name, csv_path, proc_danych):
-    data_loaded = load_processed_data(dataset_name)
+def prepare_or_load_dataset(dataset_name, csv_path, proc_danych, force_rebuild=False):
 
-    if data_loaded is not None:
-        return data_loaded
+    if not force_rebuild:
+        data_loaded = load_processed_data(dataset_name)
+        if data_loaded is not None:
+            return data_loaded
 
-    
     df, n_users, n_items, u_enc, i_enc = get_dataset_loader(dataset_name, csv_path, proc_danych)
     train_df, test_df = train_test_split(df, test_size=0.2, random_state=42)
 
