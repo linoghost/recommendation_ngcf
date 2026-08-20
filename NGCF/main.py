@@ -16,15 +16,15 @@ NGCF_PATH = 'ngcf_model.pth'
 HNS_PATH = 'ngcf_model_hns.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-BATCH_SIZE = 512
-EMB_DIM = 16
-LAYERS = [16, 16]  #2 warswy so far
-DROPOUTS = [0.1, 0.1]
+BATCH_SIZE = 1024
+EMB_DIM = 64
+LAYERS = [64, 64, 64]  #2 warswy so far
+DROPOUTS = [0.2, 0.2, 0.2]
 LR = 0.001
 EPOCHS = 40
 DECAY = 1e-5
 
-PROC_DANYCH = 0.2 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
+PROC_DANYCH = 0.4 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
 def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
     model.eval()
