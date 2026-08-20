@@ -21,7 +21,7 @@ EMB_DIM = 64
 LAYERS = [64, 64, 64]  #2 warswy so far
 DROPOUTS = [0.2, 0.2, 0.2]
 LR = 0.001
-EPOCHS = 40
+EPOCHS = 80
 DECAY = 1e-5
 
 PROC_DANYCH = 0.4 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
@@ -116,7 +116,7 @@ def bpr_loss(u_emb, pos_i_emb, neg_i_emb):
 
 ### ----- SEMI-HARD NEGATIVE SAMPLING ----- ### - Dżery - 22.05.2026
 
-def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict, min_rank=10, max_rank=50):
+def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict, min_rank=50, max_rank=200):
     """
     Pobiera Semi-Hard Negatives: omija `min_rank` najlepszych (zbyt ryzykowne fałszywe negatywy),
     i losuje przedmiot z przedziału od `min_rank` do `max_rank`.
@@ -158,6 +158,8 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
     
     model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS, dropouts=DROPOUTS).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=DECAY)
+
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
 
     
     start_time_str = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -228,6 +230,9 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
             red_eta_str = f"\033[91mOgólne ETA: {h:02d}:{m:02d}:{s:02d}\033[0m"
             
             pbar.set_postfix_str(f"loss: {loss.item():.4f} | {red_eta_str}")
+
+        scheduler.step()
+
         avg_loss = total_loss / len(train_loader)
         epoch_loses.append(avg_loss)
         print(f"Epoch {epoch+1:02d}/{EPOCHS} | Loss: {avg_loss:.4f} | Time: {time.time() - start_time:.2f}s")
