@@ -19,10 +19,10 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 BATCH_SIZE = 1024
 EMB_DIM = 64
 LAYERS = [64, 64, 64]  #2 warswy so far
-DROPOUTS = [0.2, 0.2, 0.2]
+DROPOUTS = [0.3, 0.3, 0.3]
 LR = 0.001
-EPOCHS = 80
-DECAY = 1e-5
+EPOCHS = 50
+DECAY = 1e-4
 
 PROC_DANYCH = 0.4 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
@@ -116,7 +116,7 @@ def bpr_loss(u_emb, pos_i_emb, neg_i_emb):
 
 ### ----- SEMI-HARD NEGATIVE SAMPLING ----- ### - Dżery - 22.05.2026
 
-def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict, min_rank=50, max_rank=200):
+def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict, min_rank=20, max_rank=100):
     """
     Pobiera Semi-Hard Negatives: omija `min_rank` najlepszych (zbyt ryzykowne fałszywe negatywy),
     i losuje przedmiot z przedziału od `min_rank` do `max_rank`.
