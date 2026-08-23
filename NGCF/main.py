@@ -19,7 +19,7 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 BATCH_SIZE = 512
 EMB_DIM = 64
 LAYERS = [64, 64, 64]  #2 warswy so far
-DROPOUTS = [0.3, 0.3, 0.3]
+DROPOUTS = [0.2, 0.2, 0.2]
 LR = 0.001
 EPOCHS = 50
 DECAY = 1e-4
@@ -230,6 +230,10 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
             red_eta_str = f"\033[91mOgólne ETA: {h:02d}:{m:02d}:{s:02d}\033[0m"
             
             pbar.set_postfix_str(f"loss: {loss.item():.4f} | {red_eta_str}")
+
+        if epoch == 0 and torch.cuda.is_available():
+            max_mem = torch.cuda.max_memory_allocated() / (1024 ** 3)
+            print(f"Maksymalne zużycie VRAM: {max_mem:.2f} GB / 11.00 GB")
 
         scheduler.step()
 
