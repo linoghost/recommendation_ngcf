@@ -16,7 +16,7 @@ NGCF_PATH = 'ngcf_model.pth'
 HNS_PATH = 'ngcf_model_hns.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-BATCH_SIZE = 1024
+BATCH_SIZE = 512
 EMB_DIM = 64
 LAYERS = [64, 64, 64]  #2 warswy so far
 DROPOUTS = [0.3, 0.3, 0.3]
