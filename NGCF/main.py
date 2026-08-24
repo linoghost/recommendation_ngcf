@@ -16,12 +16,12 @@ NGCF_PATH = 'ngcf_model.pth'
 HNS_PATH = 'ngcf_model_hns.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-BATCH_SIZE = 512
+BATCH_SIZE = 1024
 EMB_DIM = 64
 LAYERS = [64, 64, 64]  #2 warswy so far
-DROPOUTS = [0.2, 0.2, 0.2]
+DROPOUTS = [0.3, 0.3, 0.3]
 LR = 0.001
-EPOCHS = 50
+EPOCHS = 100
 DECAY = 1e-4
 
 PROC_DANYCH = 0.4 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
@@ -159,7 +159,7 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
     model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS, dropouts=DROPOUTS).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=DECAY)
 
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
 
     
     start_time_str = time.strftime("%Y-%m-%d %H:%M:%S")
