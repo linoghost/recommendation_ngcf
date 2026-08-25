@@ -16,11 +16,11 @@ NGCF_PATH = 'ngcf_model.pth'
 HNS_PATH = 'ngcf_model_hns.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-BATCH_SIZE = 1024
+BATCH_SIZE = 512
 EMB_DIM = 64
 LAYERS = [64, 64, 64]  #2 warswy so far
 DROPOUTS = [0.3, 0.3, 0.3]
-LR = 0.001
+LR = 0.0005
 EPOCHS = 100
 DECAY = 1e-4
 
@@ -151,7 +151,7 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
     epoch_loses=[]
 
     train_dataset = MovieLensTrainDataset(train_pairs, n_users, n_items)
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=2, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=8, pin_memory=True)
 
     print(f"Dane gotowe. Users: {n_users}, Items: {n_items}")
 
