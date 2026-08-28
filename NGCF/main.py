@@ -20,7 +20,7 @@ BATCH_SIZE = 512
 EMB_DIM = 64
 LAYERS = [64, 64, 64]  #2 warswy so far
 DROPOUTS = [0.3, 0.3, 0.3]
-LR = 0.0005
+LR = 0.0001
 EPOCHS = 100
 DECAY = 1e-4
 
@@ -145,7 +145,7 @@ def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict, min_rank
 
     return i_g_embeddings[semi_hard_neg_indices]
 
-def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, use_hns=True):
+def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, use_hns=True, start_epoch=0):
     print(f"Używam urządzenia: {DEVICE}")
 
     epoch_loses=[]
@@ -159,7 +159,7 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
     model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS, dropouts=DROPOUTS).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=DECAY)
 
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 
     
     start_time_str = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -168,7 +168,30 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
     ema_batch_time = None
     alpha = 0.05 # Współczynnik wygładzania - im mniejszy, tym rzadsze "skoki"
     last_time = time.time()
-    for epoch in range(EPOCHS):
+
+    os.makedirs('checkpoints', exist_ok=True)
+    log_file_path = f"training_log_{int(PROC_DANYCH * 100)}proc.txt"
+
+    # Zmienione na "a", żeby nie nadpisywać historii przy wznawianiu!
+    with open(log_file_path, "a") as f:
+        f.write(f"\n--- NOWA SESJA TRENINGOWA (Czas startu: {start_time_str}) ---\n")
+
+    # --- DODANA LOGIKA WZNAWIANIA ---
+    if start_epoch > 0:
+        chkpt_path = f'checkpoints/ngcf_model_epoch_{start_epoch}.pth'
+        if os.path.exists(chkpt_path):
+            print(f"Wczytywanie wag z {chkpt_path}...")
+            model.load_state_dict(torch.load(chkpt_path, map_location=DEVICE))
+
+            # Ręczne "przewinięcie" schedulera do obecnej epoki
+            for _ in range(start_epoch):
+                scheduler.step()
+        else:
+            print(f"Błąd: Nie znaleziono pliku {chkpt_path}! Zaczynam od 0.")
+            start_epoch = 0
+    # --------------------------------
+
+    for epoch in range(start_epoch, EPOCHS):
         model.train()
         total_loss = 0
 
@@ -237,9 +260,22 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
 
         scheduler.step()
 
+        # Zapis i logowanie
         avg_loss = total_loss / len(train_loader)
         epoch_loses.append(avg_loss)
-        print(f"Epoch {epoch+1:02d}/{EPOCHS} | Loss: {avg_loss:.4f} | Time: {time.time() - start_time:.2f}s")
+
+        epoch_info = f"Epoch {epoch + 1:02d}/{EPOCHS} | Loss: {avg_loss:.4f} | Time: {time.time() - start_time:.2f}s"
+        print(epoch_info)
+
+        # Zapis do pliku tekstowego na bieżąco
+        with open(log_file_path, "a") as f:
+            f.write(epoch_info + "\n")
+
+        # Zapisywanie Checkpointu co 10 epok
+        if (epoch + 1) % 10 == 0:
+            chkpt_path = f'checkpoints/ngcf_model_epoch_{epoch + 1}.pth'
+            torch.save(model.state_dict(), chkpt_path)
+            print(f"--> Zapisano checkpoint awaryjny: {chkpt_path}")
 
     if use_hns:
         torch.save(model.state_dict(), 'ngcf_model_hns.pth')
@@ -283,7 +319,7 @@ def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_d
     else:
         prefix="NO_HNS"
 
-    plt.title(f'({prefix}) Metryki Ewaluacji Modelu Rekomendacyjnego (@K=20) dla {PROC_DANYCH}%', fontsize=14)
+    plt.title(f'({prefix}) Metryki Ewaluacji Modelu Rekomendacyjnego (@K=20) dla {int(PROC_DANYCH*100)}%', fontsize=14)
     plt.ylabel('Wartość', fontsize=12)
     plt.ylim(0, max(values) + 0.1) 
     plt.grid(axis='y', linestyle='--', alpha=0.7)
@@ -302,7 +338,7 @@ def plot_training_loss(epoch_losses, use_hns):
     plt.figure(figsize=(10, 5))
     plt.plot(range(1, len(epoch_losses) + 1), epoch_losses, marker='o', color='#2c3e50', linestyle='-', linewidth=2)
     
-    plt.title(f'({prefix}) Krzywa uczenia (BPR Loss) dla {PROC_DANYCH} %', fontsize=14)
+    plt.title(f'({prefix}) Krzywa uczenia (BPR Loss) dla {PROC_DANYCH*100} %', fontsize=14)
     plt.xlabel('Epoka', fontsize=12)
     plt.ylabel('Średni Loss', fontsize=12)
     plt.grid(True, which='both', linestyle='--', alpha=0.5)
@@ -346,11 +382,17 @@ def main():
         print("robimy hns")
         path_check=HNS_PATH
 
-    if not os.path.exists(path_check):
-        loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, use_hns)
-        plot_training_loss(loses, use_hns)
+    # DODANE: Zapytanie o wznowienie
+    print("Wznowić trening z checkpointu? (Wpisz numer epoki, np. 30, lub N jeśli startujemy od zera):")
+    resume_resp = input()
+    start_epoch = 0
+    if resume_resp.upper() != 'N':
+        start_epoch = int(resume_resp)
 
-    
+    if not os.path.exists(path_check):
+        # Przekazujemy start_epoch do funkcji trenującej
+        loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, use_hns, start_epoch)
+        plot_training_loss(loses, use_hns)
 
     print(f"Używam urządzenia: {DEVICE}")
     
