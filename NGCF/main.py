@@ -21,10 +21,10 @@ EMB_DIM = 64
 LAYERS = [64, 64, 64]  #2 warswy so far
 DROPOUTS = [0.3, 0.3, 0.3]
 LR = 0.0005
-EPOCHS = 100
+EPOCHS = 30
 DECAY = 1e-4
 
-PROC_DANYCH = 0.6 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
+PROC_DANYCH = 0.2 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
 def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
     model.eval()
@@ -348,7 +348,8 @@ def plot_training_loss(epoch_losses, use_hns):
         plt.annotate(f'{loss:.4f}', (i+1, epoch_losses[i]), textcoords="offset points", xytext=(0,10), ha='center')
 
     plt.tight_layout()
-    plt.savefig(f'wykresy/{prefix}_Loss_plot_{int(PROC_DANYCH*100)}proc.png')
+    # plt.savefig(f'wykresy/{prefix}_Loss_plot_{int(PROC_DANYCH*100)}proc.png')
+    plt.savefig(f'wykresy/{prefix}_Loss_plot_{LAYERS}.png')
     plt.show()
 
 
