@@ -293,6 +293,9 @@ def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_d
     print("Obliczanie metryk...")
     hr, mrr, ndcg, recall = evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20)
 
+    with open("historia_metryk.csv", "a", encoding="utf-8") as f:
+        f.write(f"{LAYERS};{DROPOUTS}; Hit Rate: {hr:.4f}; NDCG: {ndcg:.4f}; MRR: {mrr:.4f}; Recall: {recall:.4f}\n")
+
     print(f"\nWyniki @K=20:")
     print(f"Hit Rate: {hr:.4f}")
     print(f"MRR:      {mrr:.4f}")
