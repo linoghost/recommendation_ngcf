@@ -18,13 +18,13 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 BATCH_SIZE = 512
 EMB_DIM = 64
-LAYERS = [64, 64, 64]  #2 warswy so far
-DROPOUTS = [0.3, 0.3, 0.3]
+LAYERS = [64, 64]  #2 warswy so far
+DROPOUTS = [0.3, 0.3]
 LR = 0.0005
-EPOCHS = 30
+EPOCHS = 80
 DECAY = 1e-4
 
-PROC_DANYCH = 0.2 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
+PROC_DANYCH = 0.6 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
 def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
     model.eval()
@@ -116,7 +116,7 @@ def bpr_loss(u_emb, pos_i_emb, neg_i_emb):
 
 ### ----- SEMI-HARD NEGATIVE SAMPLING ----- ### - Dżery - 22.05.2026
 
-def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict, min_rank=20, max_rank=100):
+def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict, min_rank=50, max_rank=200):
     """
     Pobiera Semi-Hard Negatives: omija `min_rank` najlepszych (zbyt ryzykowne fałszywe negatywy),
     i losuje przedmiot z przedziału od `min_rank` do `max_rank`.
@@ -294,7 +294,7 @@ def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_d
     hr, mrr, ndcg, recall = evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20)
 
     with open("historia_metryk.csv", "a", encoding="utf-8") as f:
-        f.write(f"{LAYERS};{DROPOUTS}; Hit Rate: {hr:.4f}; NDCG: {ndcg:.4f}; MRR: {mrr:.4f}; Recall: {recall:.4f}\n")
+        f.write(f"{int(PROC_DANYCH*100)}%;{LAYERS};{DROPOUTS}; Hit Rate: {hr:.4f}; NDCG: {ndcg:.4f}; MRR: {mrr:.4f}; Recall: {recall:.4f}\n")
 
     print(f"\nWyniki @K=20:")
     print(f"Hit Rate: {hr:.4f}")
@@ -352,78 +352,13 @@ def plot_training_loss(epoch_losses, use_hns):
 
     plt.tight_layout()
     # plt.savefig(f'wykresy/{prefix}_Loss_plot_{int(PROC_DANYCH*100)}proc.png')
-    plt.savefig(f'wykresy/{prefix}_Loss_plot_{LAYERS}.png')
+    # plt.savefig(f'wykresy/{prefix}_Loss_plot_{LAYERS}.png')
+    plt.savefig(f'wykresy/{prefix}_Loss_plot_{int(PROC_DANYCH*100)}proc_{LAYERS}.png')
     plt.show()
 
 
 def main():
-    global LAYERS, DROPOUTS, HNS_PATH  # Pozwala nadpisać zmienne z góry pliku
-
-    try:
-        adj_matrix, train_pairs, test_pairs, n_users, n_items, meta = prepare_or_load_dataset(CSV_PATH, PROC_DANYCH)
-    except FileNotFoundError:
-        print(f"Błąd: Nie znaleziono pliku '{CSV_PATH}'. Pobierz MovieLens dataset.")
-        return
-
-    adj_matrix = adj_matrix.to(DEVICE)
-    train_user_dict = {}
-
-    for pair in train_pairs:
-        u = int(pair[0])
-        i = int(pair[1])
-        if u not in train_user_dict:
-            train_user_dict[u] = []
-        train_user_dict[u].append(i)
-
-    # --- KONFIGURACJA KOLEJKI ---
-    architektury_do_testu = [
-        [16],
-        [16, 16],
-        [16, 16, 16],
-        [32],
-        [32, 32],
-        [32, 32, 32],
-        [64],
-        [64, 64],
-        [64, 64, 64],
-        [64, 32, 16],
-        [64, 32],
-        [32, 16]
-    ]
-
-    use_hns = True
-    start_epoch = 0
-
-    for arch in architektury_do_testu:
-        LAYERS = arch
-        DROPOUTS = [0.1] * len(arch)  # Automatyczne dopasowanie np. [0.1, 0.1]
-
-        # Dynamiczna nazwa modelu, żeby nie nadpisywać wag z poprzedniego testu w pętli
-        aktualny_path = f'ngcf_model_hns_{LAYERS}.pth'
-
-        print(f"\n{'=' * 40}")
-        print(f"ROZPOCZYNAM TEST ARCHITEKTURY: {LAYERS}")
-        print(f"{'=' * 40}")
-
-        loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, use_hns,
-                           start_epoch)
-        plot_training_loss(loses, use_hns)
-
-        print(f"Używam urządzenia: {DEVICE}")
-
-        print(f"Ewaluacja modelu: {LAYERS}")
-        model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS, dropouts=DROPOUTS)
-
-        # Wczytywanie świeżo zapisanego modelu z pętli
-        state_dict = torch.load('ngcf_model_hns.pth', map_location=DEVICE)
-        model.load_state_dict(state_dict)
-        model.to(DEVICE)
-
-        evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict, use_hns)
-
-        # Czyszczenie wykresu w tle, żeby krzywe z różnych architektur nie nałożyły się na siebie
-        plt.close('all')
-
+    # global LAYERS, DROPOUTS, HNS_PATH  # Pozwala nadpisać zmienne z góry pliku
     #
     # try:
     #     adj_matrix, train_pairs, test_pairs, n_users, n_items, meta = prepare_or_load_dataset(CSV_PATH, PROC_DANYCH)
@@ -432,7 +367,6 @@ def main():
     #     return
     #
     # adj_matrix = adj_matrix.to(DEVICE)
-    #
     # train_user_dict = {}
     #
     # for pair in train_pairs:
@@ -442,57 +376,108 @@ def main():
     #         train_user_dict[u] = []
     #     train_user_dict[u].append(i)
     #
-    #     # --- KONFIGURACJA KOLEJKI ---
-    #     architektury_do_testu = [
-    #         [64],
-    #         [64, 64],
-    #         [64, 64, 64],
-    #         [32],
-    #         [32, 32],
-    #         [32, 32, 32],
-    #         [16],
-    #         [16, 16],
-    #         [16, 16, 16],
-    #         [64, 32, 16],
-    #         [64, 32],
-    #         [32, 16]
-    #     ]
+    # # --- KONFIGURACJA KOLEJKI ---
+    # architektury_do_testu = [
+    #     [16],
+    #     [16, 16],
+    #     [16, 16, 16],
+    #     [32],
+    #     [32, 32],
+    #     [32, 32, 32],
+    #     [64],
+    #     [64, 64],
+    #     [64, 64, 64],
+    #     [64, 32, 16],
+    #     [64, 32],
+    #     [32, 16]
+    # ]
     #
-    # print("Uzyc Hard negative sampling? T/N")
-    # hns_response = input()
-    # path_check = ''
-    # if hns_response=='N' or hns_response=='n':
-    #     use_hns=False
-    #     print("robimy bez")
-    #     path_check=NGCF_PATH
-    # else:
-    #     use_hns=True
-    #     print("robimy hns")
-    #     path_check=HNS_PATH
-    #
-    # # DODANE: Zapytanie o wznowienie
-    # print("Wznowić trening z checkpointu? (Wpisz numer epoki, np. 30, lub N jeśli startujemy od zera):")
-    # resume_resp = input()
+    # use_hns = True
     # start_epoch = 0
-    # if resume_resp.upper() != 'N':
-    #     start_epoch = int(resume_resp)
     #
-    # if not os.path.exists(path_check):
-    #     # Przekazujemy start_epoch do funkcji trenującej
-    #     loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, use_hns, start_epoch)
+    # for arch in architektury_do_testu:
+    #     LAYERS = arch
+    #     DROPOUTS = [0.1] * len(arch)  # Automatyczne dopasowanie np. [0.1, 0.1]
+    #
+    #     # Dynamiczna nazwa modelu, żeby nie nadpisywać wag z poprzedniego testu w pętli
+    #     aktualny_path = f'ngcf_model_hns_{LAYERS}.pth'
+    #
+    #     print(f"\n{'=' * 40}")
+    #     print(f"ROZPOCZYNAM TEST ARCHITEKTURY: {LAYERS}")
+    #     print(f"{'=' * 40}")
+    #
+    #     loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, use_hns,
+    #                        start_epoch)
     #     plot_training_loss(loses, use_hns)
     #
-    # print(f"Używam urządzenia: {DEVICE}")
+    #     print(f"Używam urządzenia: {DEVICE}")
     #
-    # model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS, dropouts=DROPOUTS)
+    #     print(f"Ewaluacja modelu: {LAYERS}")
+    #     model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS, dropouts=DROPOUTS)
     #
-    # state_dict = torch.load(path_check, map_location=DEVICE)
+    #     # Wczytywanie świeżo zapisanego modelu z pętli
+    #     state_dict = torch.load('ngcf_model_hns.pth', map_location=DEVICE)
+    #     model.load_state_dict(state_dict)
+    #     model.to(DEVICE)
     #
-    # model.load_state_dict(state_dict)
+    #     evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict, use_hns)
     #
-    # model.to(DEVICE)
-    #
-    # evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict, use_hns)
+    #     # Czyszczenie wykresu w tle, żeby krzywe z różnych architektur nie nałożyły się na siebie
+    #     plt.close('all')
+
+
+    try:
+        adj_matrix, train_pairs, test_pairs, n_users, n_items, meta = prepare_or_load_dataset(CSV_PATH, PROC_DANYCH)
+    except FileNotFoundError:
+        print(f"Błąd: Nie znaleziono pliku '{CSV_PATH}'. Pobierz MovieLens dataset.")
+        return
+
+    adj_matrix = adj_matrix.to(DEVICE)
+
+    train_user_dict = {}
+
+    for pair in train_pairs:
+        u = int(pair[0])
+        i = int(pair[1])
+        if u not in train_user_dict:
+            train_user_dict[u] = []
+        train_user_dict[u].append(i)
+
+    print("Uzyc Hard negative sampling? T/N")
+    hns_response = input()
+    path_check = ''
+    if hns_response=='N' or hns_response=='n':
+        use_hns=False
+        print("robimy bez")
+        path_check=NGCF_PATH
+    else:
+        use_hns=True
+        print("robimy hns")
+        path_check=HNS_PATH
+
+    # DODANE: Zapytanie o wznowienie
+    print("Wznowić trening z checkpointu? (Wpisz numer epoki, np. 30, lub N jeśli startujemy od zera):")
+    resume_resp = input()
+    start_epoch = 0
+    if resume_resp.upper() != 'N':
+        start_epoch = int(resume_resp)
+
+    if not os.path.exists(path_check):
+        # Przekazujemy start_epoch do funkcji trenującej
+        loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, use_hns, start_epoch)
+        plot_training_loss(loses, use_hns)
+
+    print(f"Używam urządzenia: {DEVICE}")
+
+    model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS, dropouts=DROPOUTS)
+
+    state_dict = torch.load(path_check, map_location=DEVICE)
+
+    model.load_state_dict(state_dict)
+
+    model.to(DEVICE)
+
+    evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict, use_hns)
 
 if __name__ == "__main__":
     main()
