@@ -18,7 +18,7 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 BATCH_SIZE = 512
 EMB_DIM = 64
-LAYERS = [64, 64]  #2 warswy so far
+LAYERS = [64, 32]  #2 warswy so far
 DROPOUTS = [0.3, 0.3]
 LR = 0.0005
 EPOCHS = 80
@@ -116,7 +116,7 @@ def bpr_loss(u_emb, pos_i_emb, neg_i_emb):
 
 ### ----- SEMI-HARD NEGATIVE SAMPLING ----- ### - Dżery - 22.05.2026
 
-def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict, min_rank=50, max_rank=200):
+def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict, min_rank=10, max_rank=50):
     """
     Pobiera Semi-Hard Negatives: omija `min_rank` najlepszych (zbyt ryzykowne fałszywe negatywy),
     i losuje przedmiot z przedziału od `min_rank` do `max_rank`.
@@ -350,10 +350,12 @@ def plot_training_loss(epoch_losses, use_hns):
     for i, loss in enumerate(epoch_losses):
         plt.annotate(f'{loss:.4f}', (i+1, epoch_losses[i]), textcoords="offset points", xytext=(0,10), ha='center')
 
+    aktualna_data = time.strftime("%Y-%m-%d_%H-%M")
+
     plt.tight_layout()
     # plt.savefig(f'wykresy/{prefix}_Loss_plot_{int(PROC_DANYCH*100)}proc.png')
     # plt.savefig(f'wykresy/{prefix}_Loss_plot_{LAYERS}.png')
-    plt.savefig(f'wykresy/{prefix}_Loss_plot_{int(PROC_DANYCH*100)}proc_{LAYERS}.png')
+    plt.savefig(f'wykresy/{prefix}_Loss_plot_{int(PROC_DANYCH*100)}proc_{LAYERS}_{aktualna_data}.png')
     plt.show()
 
 
