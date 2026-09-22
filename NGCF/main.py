@@ -165,7 +165,7 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=DECAY)
 
     # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.5)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
     
     start_time_str = time.strftime("%Y-%m-%d %H:%M:%S")
     print(f"Rozpoczynam trening... (Czas startu: {start_time_str})")
