@@ -16,7 +16,7 @@ NGCF_PATH = 'ngcf_model.pth'
 HNS_PATH = 'ngcf_model_hns.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-BATCH_SIZE = 512
+BATCH_SIZE = 1024
 EMB_DIM = 64
 LAYERS = [64, 32]  #2 warswy so far
 DROPOUTS = [0.3, 0.3]
@@ -155,12 +155,17 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
 
     print(f"Dane gotowe. Users: {n_users}, Items: {n_items}")
 
+    test_loader = DataLoader(test_pairs, batch_size=1024, shuffle=False)
+
+    best_hr = 0.0
+    patience_counter = 0
+    patience_limit = 5  # Przerwij, jeśli Hit Rate nie wzrośnie przez 5 epok
     
     model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS, dropouts=DROPOUTS).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=DECAY)
 
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.5)
-
+    # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.5)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True)
     
     start_time_str = time.strftime("%Y-%m-%d %H:%M:%S")
     print(f"Rozpoczynam trening... (Czas startu: {start_time_str})")
@@ -258,11 +263,15 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
             max_mem = torch.cuda.max_memory_allocated() / (1024 ** 3)
             print(f"Maksymalne zużycie VRAM: {max_mem:.2f} GB / 11.00 GB")
 
-        scheduler.step()
+
 
         # Zapis i logowanie
         avg_loss = total_loss / len(train_loader)
+        scheduler.step(avg_loss)
         epoch_loses.append(avg_loss)
+
+        # --- EARLY STOPPING (Ewaluacja w locie) ---
+        hr, mrr, ndcg, recall = evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20)
 
         epoch_info = f"Epoch {epoch + 1:02d}/{EPOCHS} | Loss: {avg_loss:.4f} | Time: {time.time() - start_time:.2f}s"
         print(epoch_info)
@@ -270,6 +279,25 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
         # Zapis do pliku tekstowego na bieżąco
         with open(log_file_path, "a") as f:
             f.write(epoch_info + "\n")
+
+            # Sprawdzanie czy model się poprawił
+            if hr > best_hr:
+                best_hr = hr
+                patience_counter = 0
+
+                # Nadpisujemy najlepszy stan modelu
+                best_model_path = f'ngcf_model_hns_best.pth'
+                torch.save(model.state_dict(), best_model_path)
+                print(f"🌟 Znaleziono nowe najlepsze wagi! (Hit Rate: {best_hr:.4f}) - Zapisano.")
+            else:
+                patience_counter += 1
+                print(f"Brak poprawy od {patience_counter} epok (Najlepszy HR: {best_hr:.4f}).")
+
+            # Zatrzymanie pętli, jeśli limit został wyczerpany
+            if patience_counter >= patience_limit:
+                print(f"\n🛑 EARLY STOPPING! Trening przerwany na epoce {epoch + 1}.")
+                print(f"Najwyższy zarejestrowany Hit Rate: {best_hr:.4f}")
+                break
 
         # Zapisywanie Checkpointu co 10 epok
         if (epoch + 1) % 10 == 0:
@@ -294,7 +322,7 @@ def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_d
     hr, mrr, ndcg, recall = evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20)
 
     with open("historia_metryk.csv", "a", encoding="utf-8") as f:
-        f.write(f"{int(PROC_DANYCH*100)}%;{LAYERS};{DROPOUTS}; Hit Rate: {hr:.4f}; NDCG: {ndcg:.4f}; MRR: {mrr:.4f}; Recall: {recall:.4f}\n")
+        f.write(f"{int(PROC_DANYCH*100)}%;Warstwy: {LAYERS};Dropouts: {DROPOUTS};Batch size: {BATCH_SIZE};Learning Rate: {LR};Decay: {DECAY}; Hit Rate: {hr:.4f}; NDCG: {ndcg:.4f}; MRR: {mrr:.4f}; Recall: {recall:.4f}\n")
 
     print(f"\nWyniki @K=20:")
     print(f"Hit Rate: {hr:.4f}")
@@ -471,9 +499,10 @@ def main():
 
     print(f"Używam urządzenia: {DEVICE}")
 
+    print(f"Ewaluacja najlepszego modelu: {LAYERS}")
     model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS, dropouts=DROPOUTS)
 
-    state_dict = torch.load(path_check, map_location=DEVICE)
+    state_dict = torch.load('ngcf_model_hns_best.pth', map_location=DEVICE)
 
     model.load_state_dict(state_dict)
 
