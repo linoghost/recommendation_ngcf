@@ -16,11 +16,11 @@ NGCF_PATH = 'ngcf_model.pth'
 HNS_PATH = 'ngcf_model_hns.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-BATCH_SIZE = 1024
+BATCH_SIZE = 2048
 EMB_DIM = 64
 LAYERS = [64, 64]  #2 warswy so far
 DROPOUTS = [0.3, 0.3]
-LR = 0.0005
+LR = 0.001
 EPOCHS = 80
 DECAY = 1e-4
 PROC_DANYCH = 0.6 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
@@ -115,7 +115,7 @@ def bpr_loss(u_emb, pos_i_emb, neg_i_emb):
 
 ### ----- SEMI-HARD NEGATIVE SAMPLING ----- ### - Dżery - 22.05.2026
 
-def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict, min_rank=10, max_rank=40):
+def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict, min_rank=10, max_rank=50):
     """
     Pobiera Semi-Hard Negatives: omija `min_rank` najlepszych (zbyt ryzykowne fałszywe negatywy),
     i losuje przedmiot z przedziału od `min_rank` do `max_rank`.
@@ -263,11 +263,14 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
             print(f"Maksymalne zużycie VRAM: {max_mem:.2f} GB / 11.00 GB")
 
 
+        old_lr = optimizer.param_groups[0]['lr']
 
         # Zapis i logowanie
         avg_loss = total_loss / len(train_loader)
         scheduler.step(avg_loss)
         epoch_loses.append(avg_loss)
+
+        new_lr = optimizer.param_groups[0]['lr']
 
         # --- EARLY STOPPING (Ewaluacja w locie) ---
         hr, mrr, ndcg, recall = evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20)
@@ -278,6 +281,13 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
         # Zapis do pliku tekstowego na bieżąco
         with open(log_file_path, "a") as f:
             f.write(epoch_info + "\n")
+
+            if new_lr < old_lr:
+                log_msg = (f"[SCHEDULER ZADZIAŁAŁ] Brak poprawy od {scheduler.patience} epok. Zmniejszono Learning Rate z {old_lr:.6f} na {new_lr:.6f}!")
+
+                print(log_msg)
+
+                f.write(log_msg + "\n")
 
             # Sprawdzanie czy model się poprawił
             if hr > best_hr:
