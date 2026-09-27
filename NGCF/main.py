@@ -18,12 +18,11 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 BATCH_SIZE = 1024
 EMB_DIM = 64
-LAYERS = [64, 32]  #2 warswy so far
+LAYERS = [64, 64]  #2 warswy so far
 DROPOUTS = [0.3, 0.3]
 LR = 0.0005
 EPOCHS = 80
 DECAY = 1e-4
-
 PROC_DANYCH = 0.6 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
 def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
@@ -116,7 +115,7 @@ def bpr_loss(u_emb, pos_i_emb, neg_i_emb):
 
 ### ----- SEMI-HARD NEGATIVE SAMPLING ----- ### - Dżery - 22.05.2026
 
-def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict, min_rank=10, max_rank=50):
+def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict, min_rank=10, max_rank=40):
     """
     Pobiera Semi-Hard Negatives: omija `min_rank` najlepszych (zbyt ryzykowne fałszywe negatywy),
     i losuje przedmiot z przedziału od `min_rank` do `max_rank`.
@@ -159,7 +158,7 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
 
     best_hr = 0.0
     patience_counter = 0
-    patience_limit = 5  # Przerwij, jeśli Hit Rate nie wzrośnie przez 5 epok
+    patience_limit = 10  # Przerwij, jeśli Hit Rate nie wzrośnie przez 5 epok
     
     model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS, dropouts=DROPOUTS).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=DECAY)
