@@ -1,0 +1,28 @@
+
+--- NOWA SESJA TRENINGOWA (Czas startu: 2026-10-10 12:35:06) ---
+Epoch 01/80 | Loss: 0.6851 | Time: 17.22s
+Epoch 02/80 | Loss: 0.6521 | Time: 16.98s
+Epoch 03/80 | Loss: 0.6130 | Time: 16.92s
+Epoch 04/80 | Loss: 0.5628 | Time: 16.79s
+Epoch 05/80 | Loss: 0.4862 | Time: 16.86s
+
+--- NOWA SESJA TRENINGOWA (Czas startu: 2026-10-10 12:41:06) ---
+Epoch 01/5 | Loss: 0.8223 | Time: 27.38s
+Epoch 02/5 | Loss: 0.7833 | Time: 27.70s
+Epoch 03/5 | Loss: 0.7730 | Time: 26.91s
+Epoch 04/5 | Loss: 0.7695 | Time: 27.41s
+Epoch 05/5 | Loss: 0.7672 | Time: 27.19s
+
+--- NOWA SESJA TRENINGOWA (Czas startu: 2026-10-10 12:44:39) ---
+Epoch 01/5 | Loss: 0.8765 | Time: 19.22s
+Epoch 02/5 | Loss: 0.8333 | Time: 18.49s
+Epoch 03/5 | Loss: 0.8154 | Time: 18.38s
+Epoch 04/5 | Loss: 0.8035 | Time: 18.28s
+Epoch 05/5 | Loss: 0.7934 | Time: 18.23s
+
+--- NOWA SESJA TRENINGOWA (Czas startu: 2026-10-10 12:46:35) ---
+Epoch 01/5 | Loss: 0.8540 | Time: 16.56s
+Epoch 02/5 | Loss: 0.8439 | Time: 16.38s
+Epoch 03/5 | Loss: 0.8364 | Time: 16.12s
+Epoch 04/5 | Loss: 0.8273 | Time: 16.14s
+Epoch 05/5 | Loss: 0.8236 | Time: 16.30s

@@ -18,7 +18,7 @@ DROPOUTS = [0.3, 0.3]
 LR = 0.001
 EPOCHS = 80
 DECAY = 1e-4
-PROC_DANYCH = 0.6 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
+PROC_DANYCH = 0.01 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
 def evaluate_methods(model, adj_matrix, test_loader, train_user_dict, k=20):
     model.eval()
@@ -139,7 +139,7 @@ def get_hard_negatives(u_batch, i_g_embeddings, users, train_user_dict, min_rank
 
     return i_g_embeddings[semi_hard_neg_indices]
 
-def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, use_hns=True, start_epoch=0):
+def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, dataset_name, use_hns=True, start_epoch=0):
     print(f"Używam urządzenia: {DEVICE}")
 
     epoch_loses=[]
@@ -174,6 +174,15 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
     # Zmienione na "a", żeby nie nadpisywać historii przy wznawianiu!
     with open(log_file_path, "a") as f:
         f.write(f"\n--- NOWA SESJA TRENINGOWA (Czas startu: {start_time_str}) ---\n")
+
+    if use_hns:
+        bpr_loss_csv = f"training_data/{dataset_name}_{int(PROC_DANYCH*100)}_bpr_loss_HNS.csv"
+    else:   
+        bpr_loss_csv = f"training_data/{dataset_name}_{int(PROC_DANYCH*100)}_bpr_loss_NO_HNS.csv"
+
+    if start_epoch == 0:
+        with open(bpr_loss_csv, "w", encoding="utf-8") as f:
+            f.write("Epoch,BPR_Loss\n")
 
     # --- DODANA LOGIKA WZNAWIANIA ---
     if start_epoch > 0:
@@ -262,6 +271,8 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
 
         # Zapis i logowanie
         avg_loss = total_loss / len(train_loader)
+        with open(bpr_loss_csv, "a", encoding="utf-8") as f:
+            f.write(f"{epoch + 1},{avg_loss:.6f}\n")
         scheduler.step(avg_loss)
         epoch_loses.append(avg_loss)
 
@@ -318,7 +329,7 @@ def train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, trai
     return epoch_loses
 
 
-def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict, use_hns):
+def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict, dataset_name, use_hns):
     
     test_loader = DataLoader(test_pairs, batch_size=1024, shuffle=False)
 
@@ -327,6 +338,17 @@ def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_d
 
     with open("historia_metryk.csv", "a", encoding="utf-8") as f:
         f.write(f"{int(PROC_DANYCH*100)}%;Warstwy: {LAYERS};Dropouts: {DROPOUTS};Batch size: {BATCH_SIZE};Learning Rate: {LR};Decay: {DECAY}; Hit Rate: {hr:.4f}; NDCG: {ndcg:.4f}; MRR: {mrr:.4f}; Recall: {recall:.4f}\n")
+
+    if use_hns:
+        metrics_csv = f"training_data/{dataset_name}_metrics_HNS.csv"
+    else:
+        metrics_csv = f"training_data/{dataset_name}_metrics_NO_HNS.csv"
+    file_exists = os.path.isfile(metrics_csv)
+
+    with open(metrics_csv, "a", encoding="utf-8") as f:
+        if not file_exists:
+            f.write("Proc_Danych,Hit_Rate,MRR,NDCG,Recall\n") 
+        f.write(f"{int(PROC_DANYCH*100)}%,{hr:.4f},{mrr:.4f},{ndcg:.4f},{recall:.4f}\n")
 
     print(f"\nWyniki @K=20:")
     print(f"Hit Rate: {hr:.4f}")
@@ -354,7 +376,7 @@ def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_d
     else:
         prefix="NO_HNS"
 
-    plt.title(f'({prefix}) Metryki Ewaluacji Modelu Rekomendacyjnego (@K=20) dla {int(PROC_DANYCH*100)}%', fontsize=14)
+    plt.title(f'({prefix}) Metryki Ewaluacji Modelu Rekomendacyjnego (@K=20) dla {int(PROC_DANYCH*100)}%, {dataset_name}', fontsize=14)
     plt.ylabel('Wartość', fontsize=12)
     plt.ylim(0, max(values) + 0.1) 
     plt.grid(axis='y', linestyle='--', alpha=0.7)
@@ -363,7 +385,7 @@ def evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_d
     plt.show()
 
 
-def plot_training_loss(epoch_losses, use_hns):
+def plot_training_loss(epoch_losses, use_hns, dataset_name):
     prefix = ''
     if use_hns:
         prefix="HNS"
@@ -373,7 +395,7 @@ def plot_training_loss(epoch_losses, use_hns):
     plt.figure(figsize=(10, 5))
     plt.plot(range(1, len(epoch_losses) + 1), epoch_losses, marker='o', color='#2c3e50', linestyle='-', linewidth=2)
     
-    plt.title(f'({prefix}) Krzywa uczenia (BPR Loss) dla {PROC_DANYCH*100} %', fontsize=14)
+    plt.title(f'({prefix}) Krzywa uczenia (BPR Loss) dla {PROC_DANYCH*100} %, {dataset_name}', fontsize=14)
     plt.xlabel('Epoka', fontsize=12)
     plt.ylabel('Średni Loss', fontsize=12)
     plt.grid(True, which='both', linestyle='--', alpha=0.5)
@@ -468,8 +490,8 @@ def main():
 
     if not os.path.exists(path_check):
         # Przekazujemy start_epoch do funkcji trenującej
-        loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, use_hns, start_epoch)
-        plot_training_loss(loses, use_hns)
+        loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, DATA_SET, use_hns, start_epoch)
+        plot_training_loss(loses, use_hns, DATA_SET)
 
     print(f"Używam urządzenia: {DEVICE}")
 
@@ -482,7 +504,7 @@ def main():
 
     model.to(DEVICE)
 
-    evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict, use_hns)
+    evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict, DATA_SET, use_hns)
 
 if __name__ == "__main__":
     main()
