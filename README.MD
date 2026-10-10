@@ -25,15 +25,26 @@ Projekt wymaga środowiska Python oraz biblioteki PyTorch z obsługą CUDA (zale
 3. Zainstaluj wymagane pakiety:
     pip install -r requirements.txt
 
-4. Pobierz zbiór danych MovieLens 20M Dataset spod [linku](https://www.kaggle.com/datasets/grouplens/movielens-20m-dataset).
+4. Pobierz zbiory danych:
+  * Amazon Reviews 2018 - [link](https://www.kaggle.com/datasets/rogate16/amazon-reviews-2018-full-dataset)
+  * MovieLens - [link](https://www.kaggle.com/datasets/grouplens/movielens-20m-dataset)
+  * Yelp 2018 Reviews - [link](https://www.kaggle.com/datasets/luisfredgs/yelp-reviews-csv)
 
-5. W folderze NGCF utwórz nowy folder "archive" i umieśc tam plik rating.csv
+5. W folderze NGCF utwórz nowy folder "archive". W nim stwórz podfoldery "amazon_books", "movielens" oraz "yelp" i umieść odpowiednio w nich pobrane pliki.
 
 Struktura plików powinna wyglądać tak:
 ```bash
 NGCF/
 ├── archive/
-│   └── rating.csv
+│   └──amazon_books/ 
+│   │   └──amazon_reviews.csv
+│   │
+│   └──movielens/
+│   │    └──rating.csv
+│   │
+│   └──yelp/
+│        └──yelp_review.csv
+│   
 ├── wykresy/
 ├── data_utils.py
 ├── main.py

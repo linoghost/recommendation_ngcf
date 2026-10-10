@@ -6,14 +6,9 @@ from tqdm import tqdm
 import os
 import matplotlib.pyplot as plt
 
-
 from model import NGCF
 from data_utils import prepare_or_load_dataset, MovieLensTrainDataset
 
-
-CSV_PATH = 'archive/rating.csv' 
-NGCF_PATH = 'ngcf_model.pth'
-HNS_PATH = 'ngcf_model_hns.pth'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 BATCH_SIZE = 2048
@@ -397,78 +392,48 @@ def plot_training_loss(epoch_losses, use_hns):
 
 
 def main():
-    # global LAYERS, DROPOUTS, HNS_PATH  # Pozwala nadpisać zmienne z góry pliku
-    #
-    # try:
-    #     adj_matrix, train_pairs, test_pairs, n_users, n_items, meta = prepare_or_load_dataset(CSV_PATH, PROC_DANYCH)
-    # except FileNotFoundError:
-    #     print(f"Błąd: Nie znaleziono pliku '{CSV_PATH}'. Pobierz MovieLens dataset.")
-    #     return
-    #
-    # adj_matrix = adj_matrix.to(DEVICE)
-    # train_user_dict = {}
-    #
-    # for pair in train_pairs:
-    #     u = int(pair[0])
-    #     i = int(pair[1])
-    #     if u not in train_user_dict:
-    #         train_user_dict[u] = []
-    #     train_user_dict[u].append(i)
-    #
-    # # --- KONFIGURACJA KOLEJKI ---
-    # architektury_do_testu = [
-    #     [16],
-    #     [16, 16],
-    #     [16, 16, 16],
-    #     [32],
-    #     [32, 32],
-    #     [32, 32, 32],
-    #     [64],
-    #     [64, 64],
-    #     [64, 64, 64],
-    #     [64, 32, 16],
-    #     [64, 32],
-    #     [32, 16]
-    # ]
-    #
-    # use_hns = True
-    # start_epoch = 0
-    #
-    # for arch in architektury_do_testu:
-    #     LAYERS = arch
-    #     DROPOUTS = [0.1] * len(arch)  # Automatyczne dopasowanie np. [0.1, 0.1]
-    #
-    #     # Dynamiczna nazwa modelu, żeby nie nadpisywać wag z poprzedniego testu w pętli
-    #     aktualny_path = f'ngcf_model_hns_{LAYERS}.pth'
-    #
-    #     print(f"\n{'=' * 40}")
-    #     print(f"ROZPOCZYNAM TEST ARCHITEKTURY: {LAYERS}")
-    #     print(f"{'=' * 40}")
-    #
-    #     loses = train_ngcf(adj_matrix, train_pairs, test_pairs, n_users, n_items, meta, train_user_dict, use_hns,
-    #                        start_epoch)
-    #     plot_training_loss(loses, use_hns)
-    #
-    #     print(f"Używam urządzenia: {DEVICE}")
-    #
-    #     print(f"Ewaluacja modelu: {LAYERS}")
-    #     model = NGCF(n_users, n_items, emb_dim=EMB_DIM, layers=LAYERS, dropouts=DROPOUTS)
-    #
-    #     # Wczytywanie świeżo zapisanego modelu z pętli
-    #     state_dict = torch.load('ngcf_model_hns.pth', map_location=DEVICE)
-    #     model.load_state_dict(state_dict)
-    #     model.to(DEVICE)
-    #
-    #     evaluate_model(model, adj_matrix, test_pairs, n_users, n_items, train_user_dict, use_hns)
-    #
-    #     # Czyszczenie wykresu w tle, żeby krzywe z różnych architektur nie nałożyły się na siebie
-    #     plt.close('all')
+    print("  #  System rekomendacji NGCF  #")
 
+    choice_flag = True
+    while(choice_flag):
+        print("Wybierz zbiór danych do treningu:")
+        print("1. MovieLens")
+        print("2. Yelp2018")
+        print("3. Amazon Books")
+        dataset_choice = input() 
+
+        if dataset_choice == '1':
+            DATA_SET = 'movielens' 
+            CSV_PATH = 'archive/movielens/rating.csv'
+            choice_flag=False
+        elif dataset_choice == '2':
+            DATA_SET = "yelp" 
+            CSV_PATH = 'archive/yelp/yelp_review.csv'
+            choice_flag=False
+        elif dataset_choice == "3":
+            DATA_SET = "amazon_books" 
+            CSV_PATH = 'archive/amazon_books/amazon_reviews.csv'
+            choice_flag=False
+        else:
+            print(f"Błędny wybór :(\n")
+                
+    
+    print(f"Wybrano zbiór: {DATA_SET}")
+    print(f"Ścieżka do pliku: {CSV_PATH}\n")
+
+    
+    print("Czy przeliczyć zbiór danych od nowa (nadpisać stary cache)? T/N")
+    rebuild_response = input().strip().lower()
+    force_rebuild = True if rebuild_response == 't' else False
+
+
+    NGCF_PATH = f'ngcf_model_{DATA_SET}.pth'
+    HNS_PATH = f'ngcf_model_hns_{DATA_SET}.pth'
 
     try:
-        adj_matrix, train_pairs, test_pairs, n_users, n_items, meta = prepare_or_load_dataset(CSV_PATH, PROC_DANYCH)
+        adj_matrix, train_pairs, test_pairs, n_users, n_items, meta = prepare_or_load_dataset(DATA_SET, CSV_PATH, PROC_DANYCH, force_rebuild)
     except FileNotFoundError:
-        print(f"Błąd: Nie znaleziono pliku '{CSV_PATH}'. Pobierz MovieLens dataset.")
+        print(f"Błąd: Nie znaleziono pliku '{CSV_PATH}'. Pobierz dataset.")
         return
 
     adj_matrix = adj_matrix.to(DEVICE)
@@ -483,15 +448,15 @@ def main():
         train_user_dict[u].append(i)
 
     print("Uzyc Hard negative sampling? T/N")
-    hns_response = input()
+    hns_response = input().strip().lower()
     path_check = ''
-    if hns_response=='N' or hns_response=='n':
+    if hns_response=='n':
         use_hns=False
-        print("robimy bez")
+        print(f"Trening ze strategią Uniform Sampling (US)\n")
         path_check=NGCF_PATH
     else:
         use_hns=True
-        print("robimy hns")
+        print(f"Trening ze strategią Hard Negative Sampling (HNS)\n")
         path_check=HNS_PATH
 
     # DODANE: Zapytanie o wznowienie
