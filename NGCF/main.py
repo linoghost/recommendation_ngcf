@@ -14,9 +14,9 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 BATCH_SIZE = 2048
 EMB_DIM = 64
 LAYERS = [64, 64]  #2 warswy so far
-DROPOUTS = [0.3, 0.3]
-LR = 0.001
-EPOCHS = 80
+DROPOUTS = [0.6, 0.6]
+LR = 0.0005
+EPOCHS = 100
 DECAY = 1e-4
 PROC_DANYCH = 0.01 #zmienna do treningu na danych, żeby nikt nie musiał czekać milion lat na model w fazach testowych
 
