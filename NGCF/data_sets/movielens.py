@@ -29,7 +29,7 @@ def load_and_process_movielens(file_path, proc_danych):
     df['user_id_idx'] = user_encoder.fit_transform(df[user_col])
     df['item_id_idx'] = item_encoder.fit_transform(df[item_col])
 
-    n_users = df['user_id_idx'].nunique() #ile mamy unikalnych ziutków
+    n_users = df['user_id_idx'].nunique() #ile mamy unikalnych userów
     n_items = df['item_id_idx'].nunique()
 
     return df, n_users, n_items, user_encoder, item_encoder
