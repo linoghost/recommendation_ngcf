@@ -23,7 +23,7 @@ def load_and_process_amazon_books(file_path, proc_danych):
         
         sampled_users = np.random.choice(unique_users, size=max(1, int(len(unique_users)* proc_danych)), replace=False)
         
-        # Zostawiamy TYLKO tych użytkowników, ale z CAŁĄ ich historią
+        # zostawiamy tylko tych użytkowników, ale z całą ich historią
         df = df[df[user_col].isin(sampled_users)].copy()
 
     df = df[df[rating_col] >= 4.0].copy()
